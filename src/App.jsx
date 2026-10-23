@@ -8,6 +8,17 @@ import { FOLDERS, incomingEmails, initialEmails } from './data/mockEmails';
 
 const byNewest = (a, b) => b.receivedAt - a.receivedAt;
 
+const getInitialTheme = () => {
+  if (typeof window === 'undefined') return 'dark';
+  try {
+    return window.localStorage.getItem('sift-theme') === 'light'
+      ? 'light'
+      : 'dark';
+  } catch {
+    return 'dark';
+  }
+};
+
 export default function App() {
   const [emails, setEmails] = useState(initialEmails);
   const [activeFolder, setActiveFolder] = useState('all');
@@ -17,6 +28,8 @@ export default function App() {
   const [selectedId, setSelectedId] = useState(initialEmails[0]?.id ?? null);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [theme, setTheme] = useState(getInitialTheme);
   const [syncing, setSyncing] = useState(false);
   const [syncQueue, setSyncQueue] = useState(incomingEmails);
   const [toast, setToast] = useState(null);
@@ -32,6 +45,20 @@ export default function App() {
     });
 
     emails.forEach((email) => {
+      if (email.folder !== 'archive') next.all += 1;
+      if (Object.hasOwn(next, email.folder)) next[email.folder] += 1;
+    });
+
+    return next;
+  }, [emails]);
+
+  const unreadCounts = useMemo(() => {
+    const next = {};
+    FOLDERS.forEach((folder) => {
+      next[folder.id] = 0;
+    });
+
+    emails.forEach((email) => {
       if (!email.unread) return;
       if (email.folder !== 'archive') next.all += 1;
       if (Object.hasOwn(next, email.folder)) next[email.folder] += 1;
@@ -39,6 +66,20 @@ export default function App() {
 
     return next;
   }, [emails]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle('dark', theme === 'dark');
+    root.style.colorScheme = theme;
+    try {
+      window.localStorage.setItem('sift-theme', theme);
+    } catch {
+      // Storage can be unavailable in private previews.
+    }
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute('content', theme === 'dark' ? '#07150f' : '#f6f4ee');
+  }, [theme]);
 
   const priorityCount = useMemo(
     () =>
@@ -296,9 +337,11 @@ export default function App() {
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        collapsed={sidebarCollapsed}
         activeFolder={activeFolder}
         onFolderChange={handleFolderChange}
         counts={counts}
+        unreadCounts={unreadCounts}
         unreadOnly={unreadOnly}
         highPriorityOnly={highPriorityOnly}
         onToggleUnread={handleToggleUnread}
@@ -325,6 +368,12 @@ export default function App() {
           onSync={handleSync}
           syncing={syncing}
           onOpenSidebar={() => setSidebarOpen(true)}
+          sidebarCollapsed={sidebarCollapsed}
+          onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
+          theme={theme}
+          onToggleTheme={() =>
+            setTheme((current) => (current === 'dark' ? 'light' : 'dark'))
+          }
           onToast={pushToast}
         />
 

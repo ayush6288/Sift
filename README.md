@@ -7,7 +7,8 @@ tags, two-bullet summaries, and quick actions over realistic mock mail.
 ## Features
 
 - Smart folders for action-required mail, receipts and invoices, newsletters,
-  and archive — with live unread counts.
+  and archive — with live conversation totals and unread indicators that stay
+  in sync when mail is archived, restored, or moved.
 - Quick filters for unread and high-priority conversations.
 - Instant search across senders, subjects, snippets, bodies, tags, and
   attachments.
@@ -16,8 +17,12 @@ tags, two-bullet summaries, and quick actions over realistic mock mail.
 - Mark handled, move between folders, archive with undo, star, and a simulated
   AI reply draft.
 - Simulated inbox sync that sorts new mail into the right folders.
-- Fully responsive: three-pane desktop layout with an off-canvas mailbox and
-  list/detail navigation on mobile.
+- Collapsible desktop sidebar that becomes an icon rail, plus an off-canvas
+  mailbox and list/detail navigation on mobile.
+- Green-tinted dark theme enabled by default, with a persisted light/dark
+  toggle in the header.
+- Fully responsive: three-pane desktop layout and a focused reading view on
+  smaller screens.
 
 ## Run locally
 

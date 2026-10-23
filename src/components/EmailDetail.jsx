@@ -24,47 +24,47 @@ function buildReplyDraft(email) {
 
 function EmptyPane() {
   return (
-    <div className="relative flex flex-1 flex-col items-center justify-center overflow-hidden bg-[#fcfbf7] px-8 py-16 text-center">
+    <div className="relative flex flex-1 flex-col items-center justify-center overflow-hidden bg-canvas px-8 py-16 text-center">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_32%,rgba(226,236,212,0.55),transparent_46%)]"
+        className="empty-pane-glow pointer-events-none absolute inset-0 opacity-70"
       />
       <div className="relative">
         <div className="relative mx-auto h-[122px] w-[170px]">
-          <div className="absolute inset-x-6 top-3 h-[82px] rotate-[-7deg] rounded-2xl border border-[#e3e2d7] bg-white/55" />
-          <div className="absolute inset-x-4 top-6 h-[98px] rotate-[4deg] rounded-2xl border border-[#dcded1] bg-[#fbfaf4] shadow-sm" />
-          <div className="absolute inset-x-1 top-1 h-[100px] overflow-hidden rounded-2xl border border-[#dfe1d5] bg-white text-left shadow-[0_18px_35px_-24px_rgba(35,56,44,0.45)]">
-            <div className="flex items-center gap-1.5 border-b border-[#eeeee7] px-3 py-2.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#c9cec2]" />
-              <span className="h-1.5 w-1.5 rounded-full bg-[#d7dbd0]" />
-              <span className="h-1.5 w-1.5 rounded-full bg-[#e2e5dc]" />
-              <span className="ml-auto flex items-center gap-1 text-[7px] font-semibold uppercase tracking-[0.1em] text-[#7a9180]">
+          <div className="absolute inset-x-6 top-3 h-[82px] rotate-[-7deg] rounded-2xl border border-line bg-raised/55" />
+          <div className="absolute inset-x-4 top-6 h-[98px] rotate-[4deg] rounded-2xl border border-line bg-soft shadow-sm" />
+          <div className="absolute inset-x-1 top-1 h-[100px] overflow-hidden rounded-2xl border border-line bg-raised text-left shadow-[0_18px_35px_-24px_rgba(35,56,44,0.45)]">
+            <div className="flex items-center gap-1.5 border-b border-line/70 px-3 py-2.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-line-strong" />
+              <span className="h-1.5 w-1.5 rounded-full bg-line" />
+              <span className="h-1.5 w-1.5 rounded-full bg-line/70" />
+              <span className="ml-auto flex items-center gap-1 text-[7px] font-semibold uppercase tracking-[0.1em] text-kicker">
                 <Icon name="sparkles" size={7} />
                 Sift
               </span>
             </div>
             <div className="space-y-2 px-3 py-3">
               <div className="flex gap-1.5">
-                <span className="h-4 w-4 rounded-full bg-[#e3ecd7]" />
-                <span className="mt-1 h-1.5 w-14 rounded-full bg-[#e6e5dc]" />
+                <span className="h-4 w-4 rounded-full bg-accent/70" />
+                <span className="mt-1 h-1.5 w-14 rounded-full bg-line" />
               </div>
-              <div className="h-1.5 w-[85%] rounded-full bg-[#e9e8df]" />
-              <div className="h-1.5 w-[67%] rounded-full bg-[#efeee7]" />
-              <div className="h-1.5 w-[76%] rounded-full bg-[#f1f0e9]" />
+              <div className="h-1.5 w-[85%] rounded-full bg-line/80" />
+              <div className="h-1.5 w-[67%] rounded-full bg-line/60" />
+              <div className="h-1.5 w-[76%] rounded-full bg-line/40" />
             </div>
           </div>
-          <span className="absolute -bottom-1 -right-1 flex h-9 w-9 items-center justify-center rounded-full bg-[#1d4b3b] text-[#edf3e4] ring-4 ring-[#fcfbf7]">
+          <span className="absolute -bottom-1 -right-1 flex h-9 w-9 items-center justify-center rounded-full bg-forest text-primary-ink ring-4 ring-canvas">
             <Icon name="sparkles" size={15} />
           </span>
         </div>
 
-        <p className="mt-7 text-[9px] font-semibold uppercase tracking-[0.2em] text-[#7f9788]">
+        <p className="mt-7 text-[9px] font-semibold uppercase tracking-[0.2em] text-kicker">
           Reading pane
         </p>
         <h2 className="mt-2 font-display text-[33px] leading-[1.1] tracking-[-0.015em] text-ink">
           A calmer inbox awaits.
         </h2>
-        <p className="mx-auto mt-2.5 max-w-[320px] text-[12px] leading-relaxed text-[#7d887f]">
+        <p className="mx-auto mt-2.5 max-w-[320px] text-[12px] leading-relaxed text-muted">
           Choose a conversation from the left. Sift has already labelled the
           urgency and pulled out what matters.
         </p>
@@ -185,7 +185,7 @@ export default function EmailDetail({
   return (
     <section
       aria-label="Reading pane"
-      className={`min-h-0 min-w-0 flex-1 flex-col bg-[#fdfcf9] ${
+      className={`min-h-0 min-w-0 flex-1 flex-col bg-canvas ${
         hiddenOnMobile ? 'hidden lg:flex' : 'flex'
       }`}
     >
@@ -193,18 +193,18 @@ export default function EmailDetail({
         <button
           type="button"
           onClick={onBack}
-          className="-ml-1 flex h-9 items-center gap-1.5 rounded-lg px-2 text-[11.5px] font-medium text-[#5f6c63] transition hover:bg-white hover:text-ink lg:hidden"
+          className="-ml-1 flex h-9 items-center gap-1.5 rounded-lg px-2 text-[11.5px] font-medium text-soft-ink transition hover:bg-hover hover:text-ink lg:hidden"
         >
           <Icon name="arrowLeft" size={15} />
           Back
         </button>
-        <div className="hidden min-w-0 items-center gap-1.5 text-[10px] text-[#98a096] sm:flex">
-          <Icon name="sparkles" size={12} className="text-[#7f9c87]" />
+        <div className="hidden min-w-0 items-center gap-1.5 text-[10px] text-faint sm:flex">
+          <Icon name="sparkles" size={12} className="text-kicker" />
           <span>Sift view</span>
-          <span className="text-[#c3c8c0]">/</span>
-          <span className="truncate text-[#7d877e]">{folder.label}</span>
+          <span className="text-faint/50">/</span>
+          <span className="truncate text-muted">{folder.label}</span>
         </div>
-        <span className="truncate text-[10px] font-medium uppercase tracking-[0.1em] text-[#9aa299] sm:hidden">
+        <span className="truncate text-[10px] font-medium uppercase tracking-[0.1em] text-faint sm:hidden">
           {folder.shortLabel}
         </span>
 
@@ -216,8 +216,8 @@ export default function EmailDetail({
             title={email.starred ? 'Remove star' : 'Star conversation'}
             className={`flex h-8 w-8 items-center justify-center rounded-lg transition ${
               email.starred
-                ? 'bg-[#faf2dc] text-[#b28b37]'
-                : 'text-[#7f8a81] hover:bg-white hover:text-ink'
+                ? 'bg-warning-soft text-warning'
+                : 'text-muted hover:bg-hover hover:text-ink'
             }`}
           >
             <Icon
@@ -230,7 +230,7 @@ export default function EmailDetail({
             type="button"
             onClick={() => (isArchived ? onRestore(email) : onArchive(email))}
             title={isArchived ? 'Move out of archive' : 'Archive conversation'}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-[#7f8a81] transition hover:bg-white hover:text-ink"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted transition hover:bg-hover hover:text-ink"
           >
             <Icon name={isArchived ? 'inbox' : 'archive'} size={16} />
           </button>
@@ -247,18 +247,18 @@ export default function EmailDetail({
               <Tag key={tag}>{tag}</Tag>
             ))}
             {email.handled ? (
-              <span className="inline-flex items-center gap-1 rounded-[5px] bg-[#e8f0e2] px-1.5 py-[3px] text-[9.5px] font-semibold uppercase leading-none tracking-[0.07em] text-[#45634e] ring-1 ring-inset ring-[#d3e3cd]">
+              <span className="inline-flex items-center gap-1 rounded-[5px] bg-forest-soft px-1.5 py-[3px] text-[9.5px] font-semibold uppercase leading-none tracking-[0.07em] text-accent-text ring-1 ring-inset ring-accent-line">
                 <Icon name="checkCircle" size={9} strokeWidth={2} />
                 Handled
               </span>
             ) : null}
-            <span className="ml-auto hidden items-center gap-1 text-[9.5px] text-[#9aa299] sm:flex">
+            <span className="ml-auto hidden items-center gap-1 text-[9.5px] text-faint sm:flex">
               <Icon name="clock" size={10} />
               {formatFullTimestamp(email.receivedAt)}
             </span>
           </div>
 
-          <h1 className="mt-4 text-balance font-display text-[32px] leading-[1.08] tracking-[-0.015em] text-[#1d2b24] sm:text-[38px]">
+          <h1 className="mt-4 text-balance font-display text-[32px] leading-[1.08] tracking-[-0.015em] text-ink sm:text-[38px]">
             {email.subject}
           </h1>
 
@@ -273,11 +273,11 @@ export default function EmailDetail({
                 <span className="text-[12.5px] font-semibold text-ink">
                   {email.sender.name}
                 </span>
-                <span className="truncate text-[10.5px] text-[#889289]">
+                <span className="truncate text-[10.5px] text-muted">
                   {email.sender.email}
                 </span>
               </div>
-              <p className="mt-1 text-[10px] text-[#9ca39b]">
+              <p className="mt-1 text-[10px] text-faint">
                 to Alex Morgan
                 <span className="sm:hidden">
                   {' '}
@@ -290,32 +290,32 @@ export default function EmailDetail({
 
           <section
             aria-label="AI summary"
-            className="relative mt-6 overflow-hidden rounded-2xl border border-[#dbe5d2] bg-[linear-gradient(140deg,#f0f5e9_0%,#f8f5ea_100%)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] sm:p-5"
+            className="ai-summary-panel relative mt-6 overflow-hidden rounded-2xl border border-summary-border p-4 sm:p-5"
           >
             <div
               aria-hidden="true"
-              className="pointer-events-none absolute -right-8 -top-12 h-32 w-32 rounded-full bg-[#cbdcb8]/35 blur-2xl"
+              className="pointer-events-none absolute -right-8 -top-12 h-32 w-32 rounded-full bg-accent/20 blur-2xl"
             />
             <div className="relative">
               <div className="flex items-center gap-2.5">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#1d4b3b] text-[#edf3e3] shadow-sm">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-forest text-primary-ink shadow-sm">
                   <Icon name="sparkles" size={14} />
                 </span>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#35553f]">
+                    <h2 className="text-[10px] font-semibold uppercase tracking-[0.16em] text-summary-label">
                       AI Summary
                     </h2>
-                    <span className="rounded-full border border-[#dfe6d4] bg-white/70 px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-[0.08em] text-[#75816d]">
+                    <span className="rounded-full border border-summary-border bg-raised/70 px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-[0.08em] text-muted">
                       2-sec read
                     </span>
                   </div>
-                  <p className="mt-0.5 text-[9.5px] text-[#7a8672]">
+                  <p className="mt-0.5 text-[9.5px] text-muted">
                     Written by Sift AI · reviewed for accuracy
                   </p>
                 </div>
-                <span className="ml-auto hidden shrink-0 items-center gap-1 text-[9px] font-medium text-[#71816a] sm:flex">
-                  <span className="h-1 w-1 rounded-full bg-[#6f9a67]" />
+                <span className="ml-auto hidden shrink-0 items-center gap-1 text-[9px] font-medium text-muted sm:flex">
+                  <span className="h-1 w-1 rounded-full bg-kicker" />
                   96% confidence
                 </span>
               </div>
@@ -324,23 +324,23 @@ export default function EmailDetail({
                 {email.summary.map((point) => (
                   <li
                     key={point}
-                    className="flex gap-2.5 text-[12px] leading-[1.65] text-[#3c4a3f]"
+                    className="flex gap-2.5 text-[12px] leading-[1.65] text-summary-ink"
                   >
-                    <span className="mt-[8px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#6c9568]" />
+                    <span className="mt-[8px] h-1.5 w-1.5 shrink-0 rounded-full bg-kicker" />
                     <span>{point}</span>
                   </li>
                 ))}
               </ul>
 
-              <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-[#e6e1ce] bg-white/65 px-3 py-2.5">
-                <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[#f5ead0] text-[#987226]">
+              <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-line bg-raised/65 px-3 py-2.5">
+                <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-warning-soft text-warning">
                   <Icon name="flag" size={11} strokeWidth={2} />
                 </span>
                 <div className="min-w-0">
-                  <p className="text-[8.5px] font-semibold uppercase tracking-[0.15em] text-[#8d8870]">
+                  <p className="text-[8.5px] font-semibold uppercase tracking-[0.15em] text-muted">
                     Detected action
                   </p>
-                  <p className="mt-0.5 text-[11.5px] font-medium leading-snug text-[#464c3f]">
+                  <p className="mt-0.5 text-[11.5px] font-medium leading-snug text-body">
                     {email.actionItem}
                   </p>
                 </div>
@@ -355,8 +355,8 @@ export default function EmailDetail({
               title={email.handled ? 'Click to reopen this task' : undefined}
               className={`inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-[11px] font-medium shadow-sm transition ${
                 email.handled
-                  ? 'bg-[#e8f0e2] text-[#365e45] ring-1 ring-inset ring-[#d0e1ca] hover:bg-[#eef4e9]'
-                  : 'bg-[#1d4b3b] text-[#f2f6ec] hover:bg-[#285e4b]'
+                  ? 'bg-forest-soft text-accent-text ring-1 ring-inset ring-accent-line hover:bg-hover'
+                  : 'bg-forest text-primary-ink hover:bg-forest-hover'
               }`}
             >
               <Icon
@@ -373,14 +373,14 @@ export default function EmailDetail({
                 onClick={() => setMoveOpen((current) => !current)}
                 aria-haspopup="menu"
                 aria-expanded={moveOpen}
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#daddd2] bg-white px-3 text-[11px] font-medium text-[#526056] shadow-sm transition hover:border-[#c7cdc1] hover:text-ink"
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-raised px-3 text-[11px] font-medium text-soft-ink shadow-sm transition hover:border-line-strong hover:text-ink"
               >
                 <Icon name="folder" size={13} />
                 Move to folder
                 <Icon
                   name="chevronDown"
                   size={11}
-                  className={`text-[#9ca49a] transition ${
+                  className={`text-faint transition ${
                     moveOpen ? 'rotate-180' : ''
                   }`}
                 />
@@ -390,9 +390,9 @@ export default function EmailDetail({
                 <div
                   role="menu"
                   aria-label="Move conversation to folder"
-                  className="animate-fade-slide absolute left-0 top-[calc(100%+6px)] z-30 w-[252px] max-w-[calc(100vw-2.5rem)] rounded-xl border border-line bg-[#fcfbf8] p-1.5 shadow-[0_18px_45px_-18px_rgba(32,49,40,0.4)]"
+                  className="animate-fade-slide absolute left-0 top-[calc(100%+6px)] z-30 w-[252px] max-w-[calc(100vw-2.5rem)] rounded-xl border border-line bg-menu p-1.5 shadow-[0_18px_45px_-18px_rgba(10,28,19,0.4)]"
                 >
-                  <p className="px-2 pb-1.5 pt-1 text-[8.5px] font-semibold uppercase tracking-[0.14em] text-[#9aa198]">
+                  <p className="px-2 pb-1.5 pt-1 text-[8.5px] font-semibold uppercase tracking-[0.14em] text-faint">
                     Move conversation to
                   </p>
                   {moveTargets.map((target) => (
@@ -404,18 +404,18 @@ export default function EmailDetail({
                         onMove(email, target.id);
                         setMoveOpen(false);
                       }}
-                      className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left text-[11.5px] font-medium text-[#4c594f] transition hover:bg-[#f0f2e9] hover:text-ink"
+                      className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left text-[11.5px] font-medium text-body transition hover:bg-soft hover:text-ink"
                     >
                       <Icon
                         name={target.icon}
                         size={14}
-                        className="text-[#7f9084]"
+                        className="text-muted"
                       />
                       <span className="flex-1 truncate">{target.label}</span>
                       <Icon
                         name="arrowRight"
                         size={11}
-                        className="text-[#b0b6ae]"
+                        className="text-faint"
                       />
                     </button>
                   ))}
@@ -426,14 +426,14 @@ export default function EmailDetail({
             <button
               type="button"
               onClick={openDraft}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#d4dfca] bg-[#f7faf2] px-3 text-[11px] font-medium text-[#31553f] shadow-sm transition hover:border-[#bfcfb5] hover:bg-[#f0f6e9]"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-accent-line bg-accent-soft px-3 text-[11px] font-medium text-accent-text shadow-sm transition hover:bg-forest-soft"
             >
               <Icon name="sparkles" size={13} />
               Draft AI reply
             </button>
           </div>
 
-          <div className="mt-7 space-y-4 text-[13px] leading-[1.8] text-[#3e4a42]">
+          <div className="mt-7 space-y-4 text-[13px] leading-[1.8] text-body">
             {email.body.map((paragraph) => (
               <p key={paragraph} className="whitespace-pre-line">
                 {paragraph}
@@ -443,7 +443,7 @@ export default function EmailDetail({
 
           {email.attachments?.length ? (
             <div className="mt-7">
-              <p className="text-[8.5px] font-semibold uppercase tracking-[0.15em] text-[#9ba29a]">
+              <p className="text-[8.5px] font-semibold uppercase tracking-[0.15em] text-faint">
                 {email.attachments.length}{' '}
                 {email.attachments.length === 1 ? 'attachment' : 'attachments'}
               </p>
@@ -455,23 +455,23 @@ export default function EmailDetail({
                     onClick={() =>
                       onNotify('Attachment previews are mocked in this demo.')
                     }
-                    className="group flex items-center gap-3 rounded-xl border border-line/90 bg-[#fbfaf6] p-2.5 text-left transition hover:border-[#cfd8c8] hover:bg-white"
+                    className="group flex items-center gap-3 rounded-xl border border-line/90 bg-soft p-2.5 text-left transition hover:border-line-strong hover:bg-raised"
                   >
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#f1ece0] text-[#806f4c]">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-warning-soft text-warning">
                       <Icon name="fileText" size={16} />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[10.5px] font-medium text-[#49554c]">
+                      <span className="block truncate text-[10.5px] font-medium text-body">
                         {attachment.name}
                       </span>
-                      <span className="mt-0.5 block text-[9px] text-[#9aa299]">
+                      <span className="mt-0.5 block text-[9px] text-faint">
                         {attachment.size}
                       </span>
                     </span>
                     <Icon
                       name="download"
                       size={14}
-                      className="text-[#a6ada5] transition group-hover:text-[#41664f]"
+                      className="text-faint transition group-hover:text-accent-text"
                     />
                   </button>
                 ))}
@@ -479,7 +479,7 @@ export default function EmailDetail({
             </div>
           ) : null}
 
-          <div className="mt-8 flex items-center gap-2 rounded-xl border border-line/90 bg-[#fbfaf5] p-2">
+          <div className="mt-8 flex items-center gap-2 rounded-xl border border-line/90 bg-soft p-2">
             <button
               type="button"
               onClick={openDraft}
@@ -490,14 +490,14 @@ export default function EmailDetail({
                 tone={CURRENT_USER.tone}
                 size="sm"
               />
-              <span className="truncate text-[11px] text-[#949d94]">
+              <span className="truncate text-[11px] text-muted">
                 Reply to {email.sender.name.split(' ')[0]}…
               </span>
             </button>
             <button
               type="button"
               onClick={openDraft}
-              className="flex shrink-0 items-center gap-1 rounded-lg border border-[#dbe4d2] bg-white px-2 py-1.5 text-[9.5px] font-semibold uppercase tracking-[0.06em] text-[#45644f] shadow-sm transition hover:bg-[#f4f8ef]"
+              className="flex shrink-0 items-center gap-1 rounded-lg border border-accent-line bg-raised px-2 py-1.5 text-[9.5px] font-semibold uppercase tracking-[0.06em] text-accent-text shadow-sm transition hover:bg-accent-soft"
             >
               <Icon name="sparkles" size={11} />
               Draft
@@ -521,10 +521,10 @@ export default function EmailDetail({
             role="dialog"
             aria-modal="true"
             aria-labelledby="draft-title"
-            className="animate-modal-in scroll-thin relative max-h-[92dvh] w-full max-w-[520px] overflow-y-auto rounded-t-[24px] border border-line bg-[#fcfbf7] shadow-[0_30px_80px_-25px_rgba(22,40,31,0.5)] sm:rounded-3xl"
+            className="animate-modal-in scroll-thin relative max-h-[92dvh] w-full max-w-[520px] overflow-y-auto rounded-t-[24px] border border-line bg-menu shadow-[0_30px_80px_-25px_rgba(4,18,11,0.6)] sm:rounded-3xl"
           >
             <div className="flex items-center gap-3 border-b border-line px-5 py-4">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#1d4b3b] text-[#edf3e4] shadow-sm">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-forest text-primary-ink shadow-sm">
                 <Icon name="sparkles" size={16} />
               </span>
               <div className="min-w-0">
@@ -534,7 +534,7 @@ export default function EmailDetail({
                 >
                   Draft AI reply
                 </h2>
-                <p className="mt-0.5 truncate text-[10px] text-[#8d968d]">
+                <p className="mt-0.5 truncate text-[10px] text-muted">
                   To {email.sender.name} · Sift writes, you decide
                 </p>
               </div>
@@ -542,7 +542,7 @@ export default function EmailDetail({
                 type="button"
                 onClick={closeDraft}
                 aria-label="Close draft"
-                className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#8c968c] transition hover:bg-paper hover:text-ink"
+                className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted transition hover:bg-hover hover:text-ink"
               >
                 <Icon name="x" size={16} />
               </button>
@@ -552,16 +552,16 @@ export default function EmailDetail({
               <div className="min-h-[230px]">
                 {generating ? (
                   <div>
-                    <p className="flex items-center gap-2 text-[11px] font-medium text-[#486351]">
-                      <span className="h-3 w-3 animate-spin rounded-full border-2 border-[#dbe4d1] border-t-[#31583f]" />
+                    <p className="flex items-center gap-2 text-[11px] font-medium text-accent-text">
+                      <span className="h-3 w-3 animate-spin rounded-full border-2 border-line border-t-accent-text" />
                       Composing a thoughtful reply…
                     </p>
                     <div className="mt-4 space-y-2.5">
-                      <div className="h-2.5 w-[78%] animate-pulse rounded-full bg-[#eceae1]" />
-                      <div className="h-2.5 w-[92%] animate-pulse rounded-full bg-[#eeede5]" />
-                      <div className="h-2.5 w-[68%] animate-pulse rounded-full bg-[#f0efe8]" />
-                      <div className="mt-4 h-2.5 w-[45%] animate-pulse rounded-full bg-[#eeede5]" />
-                      <div className="h-2.5 w-[82%] animate-pulse rounded-full bg-[#f0efe8]" />
+                      <div className="h-2.5 w-[78%] animate-pulse rounded-full bg-line" />
+                      <div className="h-2.5 w-[92%] animate-pulse rounded-full bg-line/75" />
+                      <div className="h-2.5 w-[68%] animate-pulse rounded-full bg-line/55" />
+                      <div className="mt-4 h-2.5 w-[45%] animate-pulse rounded-full bg-line/75" />
+                      <div className="h-2.5 w-[82%] animate-pulse rounded-full bg-line/55" />
                     </div>
                   </div>
                 ) : (
@@ -571,11 +571,11 @@ export default function EmailDetail({
                     rows={11}
                     autoFocus
                     aria-label="AI drafted reply"
-                    className="w-full resize-none rounded-xl border border-[#dfded4] bg-white p-3.5 text-[12px] leading-[1.75] text-[#3d4a41] shadow-[inset_0_1px_2px_rgba(30,45,35,0.03)] outline-none transition focus:border-[#b8c9b1] focus:ring-4 focus:ring-[#dbe7cd]/45"
+                    className="w-full resize-none rounded-xl border border-line-strong bg-field p-3.5 text-[12px] leading-[1.75] text-body shadow-[inset_0_1px_2px_rgba(30,45,35,0.03)] outline-none transition focus:border-accent-line focus:ring-4 focus:ring-accent/30 dark:shadow-none"
                   />
                 )}
               </div>
-              <p className="mt-2 flex items-center gap-1.5 text-[9px] text-[#9ba29a]">
+              <p className="mt-2 flex items-center gap-1.5 text-[9px] text-faint">
                 <Icon name="sparkles" size={10} />
                 AI-generated from this thread. Review before sending.
               </p>
@@ -586,7 +586,7 @@ export default function EmailDetail({
                 type="button"
                 onClick={handleCopy}
                 disabled={generating}
-                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[#dbded3] bg-white px-3 text-[11px] font-medium text-[#58655b] shadow-sm transition hover:border-[#c8cfc1] hover:text-ink disabled:opacity-50"
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-line-strong bg-raised px-3 text-[11px] font-medium text-soft-ink shadow-sm transition hover:border-line-strong hover:text-ink disabled:opacity-50"
               >
                 <Icon name={copied ? 'check' : 'copy'} size={13} />
                 {copied ? 'Copied' : 'Copy draft'}
@@ -598,7 +598,7 @@ export default function EmailDetail({
                   closeDraft();
                 }}
                 disabled={generating || !draft.trim()}
-                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#1d4b3b] px-4 text-[11px] font-medium text-[#f2f6ec] shadow-sm transition hover:bg-[#285e4b] disabled:cursor-not-allowed disabled:opacity-50 sm:ml-auto"
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-forest px-4 text-[11px] font-medium text-primary-ink shadow-sm transition hover:bg-forest-hover disabled:cursor-not-allowed disabled:opacity-50 sm:ml-auto"
               >
                 <Icon name="send" size={13} />
                 Send reply

@@ -1,17 +1,21 @@
 import Icon from './Icons';
 import { FOLDERS } from '../data/mockEmails';
 
-function QuickToggle({ checked, onChange, icon, label }) {
+function QuickToggle({ checked, onChange, icon, label, collapsed }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      aria-label={`${label}${checked ? ', on' : ''}`}
+      title={`${label}${checked ? ' — on' : ''}`}
       onClick={onChange}
-      className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] text-[#c1cfc5] transition hover:bg-white/[0.055] hover:text-[#f0f4ed]"
+      className={`group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] text-[#c1cfc5] transition hover:bg-white/[0.055] hover:text-[#f0f4ed] ${
+        collapsed ? 'lg:justify-center lg:gap-0 lg:px-0' : ''
+      }`}
     >
       <span
-        className={`flex h-7 w-7 items-center justify-center rounded-lg transition ${
+        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition ${
           checked
             ? 'bg-[#dce8cb] text-[#214533]'
             : 'bg-white/[0.055] text-[#8fa598] group-hover:text-[#c9d8cc]'
@@ -19,13 +23,17 @@ function QuickToggle({ checked, onChange, icon, label }) {
       >
         <Icon name={icon} size={14} strokeWidth={1.9} />
       </span>
-      <span className={`flex-1 font-medium ${checked ? 'text-[#f2f5ed]' : ''}`}>
+      <span
+        className={`flex-1 font-medium ${checked ? 'text-[#f2f5ed]' : ''} ${
+          collapsed ? 'lg:hidden' : ''
+        }`}
+      >
         {label}
       </span>
       <span
         className={`relative h-[18px] w-8 rounded-full transition-colors duration-200 ${
           checked ? 'bg-[#dbe7c9]' : 'bg-white/15'
-        }`}
+        } ${collapsed ? 'lg:hidden' : ''}`}
       >
         <span
           className={`absolute top-[3px] h-3 w-3 rounded-full shadow-sm transition-all duration-200 ${
@@ -42,9 +50,11 @@ function QuickToggle({ checked, onChange, icon, label }) {
 export default function Sidebar({
   open,
   onClose,
+  collapsed,
   activeFolder,
   onFolderChange,
   counts,
+  unreadCounts,
   unreadOnly,
   highPriorityOnly,
   onToggleUnread,
@@ -58,9 +68,9 @@ export default function Sidebar({
   return (
     <aside
       aria-label="Mailbox navigation"
-      className={`fixed inset-y-0 left-0 z-50 flex w-[280px] shrink-0 flex-col overflow-hidden bg-[#143026] text-[#e9efe7] shadow-2xl transition-transform duration-300 ease-out lg:static lg:z-auto lg:translate-x-0 lg:shadow-none ${
+      className={`fixed inset-y-0 left-0 z-50 flex w-[280px] shrink-0 flex-col overflow-hidden bg-sidebar text-[#e9efe7] shadow-2xl transition-[transform,width] duration-300 ease-out lg:static lg:z-auto lg:translate-x-0 lg:shadow-none ${
         open ? 'translate-x-0' : '-translate-x-full'
-      }`}
+      } ${collapsed ? 'lg:w-[78px]' : 'lg:w-[280px]'}`}
     >
       <div
         aria-hidden="true"
@@ -72,11 +82,15 @@ export default function Sidebar({
       />
 
       <div className="relative flex h-full min-h-0 flex-col">
-        <div className="flex shrink-0 items-center gap-3 px-5 pb-6 pt-5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-[13px] bg-[#e1ebd1] text-[#17362b] shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]">
+        <div
+          className={`flex shrink-0 items-center gap-3 px-5 pb-6 pt-5 ${
+            collapsed ? 'lg:justify-center lg:px-0' : ''
+          }`}
+        >
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-[#e1ebd1] text-[#17362b] shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]">
             <Icon name="logo" size={21} strokeWidth={2.1} />
           </div>
-          <div className="min-w-0">
+          <div className={`min-w-0 ${collapsed ? 'lg:hidden' : ''}`}>
             <p className="font-display text-[27px] leading-none tracking-[-0.01em] text-[#f6f8f0]">
               Sift
             </p>
@@ -84,7 +98,11 @@ export default function Sidebar({
               Inbox, sorted
             </p>
           </div>
-          <span className="ml-auto hidden rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[8.5px] font-semibold uppercase tracking-[0.14em] text-[#a8bbad] lg:inline-block">
+          <span
+            className={`ml-auto rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[8.5px] font-semibold uppercase tracking-[0.14em] text-[#a8bbad] ${
+              collapsed ? 'hidden' : 'hidden lg:inline-block'
+            }`}
+          >
             Beta
           </span>
           <button
@@ -98,14 +116,22 @@ export default function Sidebar({
         </div>
 
         <div className="scroll-dark min-h-0 flex-1 overflow-y-auto px-3 pb-3">
-          <p className="px-3 pb-2 pt-1 text-[9.5px] font-semibold uppercase tracking-[0.2em] text-[#7f988a]">
+          <p
+            className={`px-3 pb-2 pt-1 text-[9.5px] font-semibold uppercase tracking-[0.2em] text-[#7f988a] ${
+              collapsed ? 'lg:hidden' : ''
+            }`}
+          >
             Mailbox
           </p>
           <nav aria-label="Folders">
             <ul className="space-y-1">
               {FOLDERS.map((folder) => {
                 const active = activeFolder === folder.id;
-                const unread = counts[folder.id] ?? 0;
+                const total = counts[folder.id] ?? 0;
+                const unread = unreadCounts[folder.id] ?? 0;
+                const label = `${folder.label}: ${total} ${
+                  total === 1 ? 'conversation' : 'conversations'
+                }, ${unread} unread`;
 
                 return (
                   <li key={folder.id}>
@@ -113,11 +139,13 @@ export default function Sidebar({
                       type="button"
                       onClick={() => onFolderChange(folder.id)}
                       aria-current={active ? 'page' : undefined}
-                      className={`group flex w-full items-center gap-3 rounded-xl px-3 py-[9px] text-[12.5px] transition ${
+                      aria-label={label}
+                      title={label}
+                      className={`group relative flex w-full items-center gap-2.5 rounded-xl px-3 py-[9px] text-[12px] transition ${
                         active
                           ? 'bg-[#f0f2e7] text-[#19362b] shadow-[0_1px_2px_rgba(0,0,0,0.12)]'
                           : 'text-[#c2d0c6] hover:bg-white/[0.055] hover:text-[#f1f5ee]'
-                      }`}
+                      } ${collapsed ? 'lg:justify-center lg:gap-0 lg:px-0' : ''}`}
                     >
                       <Icon
                         name={folder.icon}
@@ -129,21 +157,50 @@ export default function Sidebar({
                             : 'text-[#89a294] transition group-hover:text-[#ccdbcf]'
                         }
                       />
-                      <span className="min-w-0 flex-1 truncate text-left font-medium">
+                      <span
+                        className={`min-w-0 flex-1 truncate text-left font-medium ${
+                          collapsed ? 'lg:hidden' : ''
+                        }`}
+                      >
                         {folder.label}
                       </span>
                       <span
-                        aria-label={`${unread} unread`}
-                        className={`min-w-[22px] rounded-full px-1.5 py-[3px] text-center text-[9.5px] font-semibold leading-none tabular-nums ${
-                          active
-                            ? 'bg-[#dbe8cd] text-[#274c3a]'
-                            : unread > 0
-                              ? 'bg-white/[0.11] text-[#edf2e9]'
-                              : 'bg-white/[0.04] text-[#7f988a]'
+                        className={`flex items-center gap-1.5 ${
+                          collapsed ? 'lg:hidden' : ''
                         }`}
                       >
-                        {unread}
+                        {unread > 0 ? (
+                          <span
+                            aria-hidden="true"
+                            className={`h-1.5 w-1.5 rounded-full ${
+                              active ? 'bg-[#587a55]' : 'bg-[#a7c998]'
+                            }`}
+                          />
+                        ) : null}
+                        <span
+                          className={`min-w-[22px] rounded-full px-1.5 py-[3px] text-center text-[9.5px] font-semibold leading-none tabular-nums ${
+                            active
+                              ? 'bg-[#dbe8cd] text-[#274c3a]'
+                              : total > 0
+                                ? 'bg-white/[0.11] text-[#edf2e9]'
+                                : 'bg-white/[0.04] text-[#7f988a]'
+                          }`}
+                        >
+                          {total}
+                        </span>
                       </span>
+                      {collapsed ? (
+                        <span
+                          aria-hidden="true"
+                          className={`absolute right-1 top-1 hidden min-w-[17px] rounded-full px-1 py-[3px] text-center text-[8px] font-semibold leading-none tabular-nums lg:block ${
+                            active
+                              ? 'bg-[#dbe8cd] text-[#274c3a]'
+                              : 'bg-white/[0.11] text-[#edf2e9]'
+                          }`}
+                        >
+                          {total}
+                        </span>
+                      ) : null}
                     </button>
                   </li>
                 );
@@ -152,7 +209,11 @@ export default function Sidebar({
           </nav>
 
           <div className="mt-7">
-            <div className="flex items-center justify-between px-3 pb-1.5">
+            <div
+              className={`flex items-center justify-between px-3 pb-1.5 ${
+                collapsed ? 'lg:hidden' : ''
+              }`}
+            >
               <p className="text-[9.5px] font-semibold uppercase tracking-[0.2em] text-[#7f988a]">
                 Quick filters
               </p>
@@ -172,19 +233,25 @@ export default function Sidebar({
                 onChange={onToggleUnread}
                 icon="mailOpen"
                 label="Unread only"
+                collapsed={collapsed}
               />
               <QuickToggle
                 checked={highPriorityOnly}
                 onChange={onToggleHighPriority}
                 icon="flag"
                 label="High priority"
+                collapsed={collapsed}
               />
             </div>
           </div>
         </div>
 
         <div className="shrink-0 px-3 pb-4 pt-1">
-          <div className="relative overflow-hidden rounded-2xl border border-white/[0.09] bg-[#1d4033] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+          <div
+            className={`relative overflow-hidden rounded-2xl border border-white/[0.09] bg-[#1d4033] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] ${
+              collapsed ? 'lg:hidden' : ''
+            }`}
+          >
             <div
               aria-hidden="true"
               className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-[#a3c489]/20 blur-2xl"
@@ -218,7 +285,22 @@ export default function Sidebar({
               </button>
             </div>
           </div>
-          <p className="mt-3 px-2 text-[9px] tracking-[0.04em] text-[#6f8a7a]">
+          {collapsed ? (
+            <button
+              type="button"
+              onClick={onReviewPriorities}
+              title="Review priorities"
+              aria-label="Review priorities"
+              className="hidden h-11 w-full items-center justify-center rounded-xl border border-white/10 bg-[#1d4033] text-[#dce8cb] transition hover:bg-[#24513f] hover:text-[#f2f6ec] lg:flex"
+            >
+              <Icon name="sparkles" size={17} />
+            </button>
+          ) : null}
+          <p
+            className={`mt-3 px-2 text-[9px] tracking-[0.04em] text-[#6f8a7a] ${
+              collapsed ? 'lg:hidden' : ''
+            }`}
+          >
             Sift demo · AI sorting on · v0.1
           </p>
         </div>

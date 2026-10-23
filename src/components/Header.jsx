@@ -14,7 +14,7 @@ function SearchField({
       <Icon
         name="search"
         size={16}
-        className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#929d94] transition group-focus-within:text-[#3d6552]"
+        className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-faint transition group-focus-within:text-accent-text"
       />
       <input
         ref={inputRef}
@@ -32,7 +32,7 @@ function SearchField({
         }}
         placeholder="Search senders, subjects, keywords…"
         aria-label="Search emails"
-        className={`h-10 w-full rounded-xl border border-line bg-white/75 pl-9 text-[12.5px] text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] outline-none transition placeholder:text-[#9aa39a] focus:border-[#bccdb5] focus:bg-white focus:ring-4 focus:ring-[#dce8cf]/45 ${
+        className={`h-10 w-full rounded-xl border border-line bg-field/85 pl-9 text-[12.5px] text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] outline-none transition placeholder:text-faint focus:border-accent-line focus:bg-field focus:ring-4 focus:ring-accent/30 dark:shadow-none ${
           value ? 'pr-10' : showShortcut ? 'pr-16' : 'pr-4'
         }`}
       />
@@ -44,12 +44,12 @@ function SearchField({
             inputRef.current?.focus();
           }}
           aria-label="Clear search"
-          className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-[#8c978e] transition hover:bg-paper hover:text-ink"
+          className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted transition hover:bg-hover hover:text-ink"
         >
           <Icon name="x" size={14} />
         </button>
       ) : showShortcut ? (
-        <kbd className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 items-center rounded-md border border-line bg-paper px-1.5 py-0.5 font-sans text-[9.5px] font-medium text-[#8f998f] sm:flex">
+        <kbd className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 items-center rounded-md border border-line bg-paper px-1.5 py-0.5 font-sans text-[9.5px] font-medium text-faint sm:flex">
           ⌘K
         </kbd>
       ) : null}
@@ -65,14 +65,14 @@ function ProfileMenuItem({ icon, label, onClick, destructive = false }) {
       onClick={onClick}
       className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[12px] font-medium transition ${
         destructive
-          ? 'text-[#a14b35] hover:bg-[#fbede8]'
-          : 'text-[#48544c] hover:bg-[#f3f2ec] hover:text-ink'
+          ? 'text-danger hover:bg-danger-soft'
+          : 'text-body hover:bg-soft hover:text-ink'
       }`}
     >
       <Icon
         name={icon}
         size={15}
-        className={destructive ? 'text-[#b0604a]' : 'text-[#87938a]'}
+        className={destructive ? 'text-danger' : 'text-muted'}
       />
       {label}
     </button>
@@ -86,6 +86,10 @@ export default function Header({
   onSync,
   syncing,
   onOpenSidebar,
+  sidebarCollapsed,
+  onToggleSidebar,
+  theme,
+  onToggleTheme,
   onToast,
 }) {
   const [profileOpen, setProfileOpen] = useState(false);
@@ -141,13 +145,27 @@ export default function Header({
           type="button"
           onClick={onOpenSidebar}
           aria-label="Open navigation"
-          className="-ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[#58655c] transition hover:bg-white hover:text-ink lg:hidden"
+          className="-ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-soft-ink transition hover:bg-hover hover:text-ink lg:hidden"
         >
           <Icon name="menu" size={19} />
         </button>
 
+        <button
+          type="button"
+          onClick={onToggleSidebar}
+          aria-label={sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+          aria-expanded={!sidebarCollapsed}
+          title={sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+          className="-ml-1 hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg text-soft-ink transition hover:bg-hover hover:text-ink lg:flex"
+        >
+          <Icon
+            name={sidebarCollapsed ? 'panelLeftOpen' : 'panelLeftClose'}
+            size={18}
+          />
+        </button>
+
         <div className="flex shrink-0 items-center gap-2.5 lg:hidden">
-          <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[#18382c] text-[#e4edd5] shadow-sm">
+          <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-forest text-primary-ink shadow-sm">
             <Icon name="logo" size={18} strokeWidth={2.1} />
           </div>
           <span className="font-display text-[23px] leading-none tracking-[-0.01em] text-ink">
@@ -156,12 +174,12 @@ export default function Header({
         </div>
 
         <div className="hidden min-w-0 items-center gap-2 lg:flex">
-          <Icon name="inbox" size={14} className="text-[#6f8477]" />
+          <Icon name="inbox" size={14} className="text-kicker" />
           <span className="text-[12px] font-medium text-ink">Inbox</span>
           <Icon
             name="chevronRight"
             size={12}
-            className="hidden text-[#a5aca4] xl:block"
+            className="hidden text-faint xl:block"
           />
           <span className="hidden max-w-[210px] truncate text-[12px] text-muted xl:block">
             {locationLabel}
@@ -185,7 +203,7 @@ export default function Header({
             onClick={onSync}
             disabled={syncing}
             aria-busy={syncing}
-            className="hidden h-10 items-center gap-2 rounded-xl bg-[#1d4b3b] px-3 text-[11.5px] font-medium text-[#f1f5eb] shadow-[0_1px_2px_rgba(25,55,43,0.18)] transition hover:bg-[#285e4b] disabled:cursor-wait disabled:opacity-80 md:flex"
+            className="hidden h-10 items-center gap-2 rounded-xl bg-forest px-3 text-[11.5px] font-medium text-primary-ink shadow-[0_1px_2px_rgba(25,55,43,0.18)] transition hover:bg-forest-hover disabled:cursor-wait disabled:opacity-80 md:flex"
           >
             <Icon
               name="refresh"
@@ -201,9 +219,23 @@ export default function Header({
             type="button"
             onClick={() => onToast('You’re all caught up. Nothing new to review.')}
             aria-label="Notifications"
-            className="relative flex h-10 w-10 items-center justify-center rounded-xl text-[#657269] transition hover:bg-white hover:text-ink"
+            className="relative flex h-10 w-10 items-center justify-center rounded-xl text-soft-ink transition hover:bg-hover hover:text-ink"
           >
             <Icon name="bell" size={17} />
+          </button>
+
+          <button
+            type="button"
+            onClick={onToggleTheme}
+            aria-label={
+              theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'
+            }
+            title={
+              theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'
+            }
+            className="flex h-10 w-10 items-center justify-center rounded-xl text-soft-ink transition hover:bg-hover hover:text-ink"
+          >
+            <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={17} />
           </button>
 
           <span className="mx-0.5 hidden h-6 w-px bg-line sm:block" />
@@ -215,7 +247,7 @@ export default function Header({
               aria-haspopup="menu"
               aria-expanded={profileOpen}
               aria-label="Open profile menu"
-              className="flex h-10 items-center gap-2 rounded-xl pl-1 pr-1.5 transition hover:bg-white sm:pr-2"
+              className="flex h-10 items-center gap-2 rounded-xl pl-1 pr-1.5 transition hover:bg-hover sm:pr-2"
             >
               <Avatar name={CURRENT_USER.name} tone={CURRENT_USER.tone} size="sm" />
               <span className="hidden text-left leading-tight xl:block">
@@ -229,7 +261,7 @@ export default function Header({
               <Icon
                 name="chevronDown"
                 size={13}
-                className={`hidden text-[#8c978f] transition xl:block ${
+                className={`hidden text-faint transition xl:block ${
                   profileOpen ? 'rotate-180' : ''
                 }`}
               />
@@ -239,16 +271,16 @@ export default function Header({
               <div
                 role="menu"
                 aria-label="Profile"
-                className="animate-menu-in absolute right-0 top-[calc(100%+9px)] z-50 w-[266px] origin-top-right rounded-2xl border border-line bg-[#fcfbf7] p-2 shadow-[0_22px_60px_-18px_rgba(32,49,40,0.35)]"
+                className="animate-menu-in absolute right-0 top-[calc(100%+9px)] z-50 w-[266px] origin-top-right rounded-2xl border border-line bg-menu p-2 shadow-[0_22px_60px_-18px_rgba(10,28,19,0.35)]"
               >
-                <div className="flex items-center gap-3 rounded-xl bg-[#f4f2eb] px-3 py-3">
+                <div className="flex items-center gap-3 rounded-xl bg-soft px-3 py-3">
                   <Avatar name={CURRENT_USER.name} tone={CURRENT_USER.tone} size="md" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       <p className="truncate text-[12px] font-semibold text-ink">
                         {CURRENT_USER.name}
                       </p>
-                      <span className="rounded-full bg-[#dde9cf] px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.08em] text-[#365940]">
+                      <span className="rounded-full bg-accent px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.08em] text-accent-ink">
                         Pro
                       </span>
                     </div>
@@ -304,7 +336,7 @@ export default function Header({
           disabled={syncing}
           aria-busy={syncing}
           aria-label={syncing ? 'Syncing inbox' : 'Sync inbox'}
-          className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-[#1d4b3b] px-3 text-[11px] font-medium text-[#f1f5eb] shadow-sm transition hover:bg-[#285e4b] disabled:cursor-wait disabled:opacity-80"
+          className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-forest px-3 text-[11px] font-medium text-primary-ink shadow-sm transition hover:bg-forest-hover disabled:cursor-wait disabled:opacity-80"
         >
           <Icon
             name="refresh"
