@@ -1,16 +1,57 @@
-# React + Vite
+# Sift — Inbox, sorted
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+An email organiser dashboard built with React, Vite, and Tailwind CSS. Sift is a
+front-end MVP that demonstrates AI-assisted triage: smart folders, priority
+tags, two-bullet summaries, and quick actions over realistic mock mail.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Smart folders for action-required mail, receipts and invoices, newsletters,
+  and archive — with live unread counts.
+- Quick filters for unread and high-priority conversations.
+- Instant search across senders, subjects, snippets, bodies, tags, and
+  attachments.
+- Split-pane reading view with an AI summary, detected action item, and email
+  body.
+- Mark handled, move between folders, archive with undo, star, and a simulated
+  AI reply draft.
+- Simulated inbox sync that sorts new mail into the right folders.
+- Fully responsive: three-pane desktop layout with an off-canvas mailbox and
+  list/detail navigation on mobile.
 
-## React Compiler
+## Run locally
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+npm install
+npm run dev
+```
 
-## Expanding the Oxlint configuration
+Build and lint:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+```bash
+npm run build
+npm run lint
+```
+
+## Project structure
+
+```
+src/
+├── components/
+│   ├── Avatar.jsx
+│   ├── EmailDetail.jsx
+│   ├── EmailList.jsx
+│   ├── Header.jsx
+│   ├── Icons.jsx
+│   ├── Sidebar.jsx
+│   ├── Tag.jsx
+│   └── Toast.jsx
+├── data/mockEmails.js
+├── utils/format.js
+├── App.jsx
+├── index.css
+└── main.jsx
+```
+
+All inbox data is mocked in `src/data/mockEmails.js`; no backend or email
+provider is connected.
