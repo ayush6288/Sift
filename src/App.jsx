@@ -1,22 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import AuthPage from './components/AuthPage';
+import ComposeModal from './components/ComposeModal';
 import EmailDetail from './components/EmailDetail';
 import EmailList from './components/EmailList';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
-import SimulateEmailModal from './components/SimulateEmailModal';
 import Toast from './components/Toast';
-import { FOLDERS } from './data/mockEmails';
+import { FOLDERS } from './lib/folders';
+import { folderToCategory, mapEmailRow, mapEmailRows } from './lib/emailMapper';
 import {
-  buildSeedRows,
-  folderToCategory,
-  mapEmailRow,
-  mapEmailRows,
-} from './lib/emailMapper';
-import {
+  deleteEmailRecord,
   fetchEmails,
-  seedEmailRecords,
+  subscribeToEmails,
+  subscribeToLiveUpdates,
   updateEmailRecord,
 } from './lib/emailService';
+import { supabase } from './lib/supabaseClient';
 
 const byNewest = (a, b) => b.receivedAt - a.receivedAt;
 
@@ -34,7 +33,113 @@ const getInitialTheme = () => {
 const errorText = (error) =>
   error?.message || 'Please check the connection and try again.';
 
+function AuthLoading() {
+  return (
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-paper text-ink">
+      <div className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-forest text-primary-ink shadow-sm">
+        <svg
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          aria-hidden="true"
+        >
+          <path d="M4 7h16M7.5 12h9M10.5 17h3" />
+          <circle cx="19" cy="17" r="2" fill="currentColor" stroke="none" />
+        </svg>
+      </div>
+      <p className="mt-4 text-[11px] font-medium text-muted">
+        Restoring your session…
+      </p>
+      <span className="mt-4 h-5 w-5 animate-spin rounded-full border-2 border-line border-t-accent-text" />
+    </div>
+  );
+}
+
 export default function App() {
+  const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(Boolean(supabase));
+  const [theme, setTheme] = useState(getInitialTheme);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle('dark', theme === 'dark');
+    root.style.colorScheme = theme;
+    try {
+      window.localStorage.setItem('sift-theme', theme);
+    } catch {
+      // Storage can be unavailable in private previews.
+    }
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute('content', theme === 'dark' ? '#07150f' : '#f6f4ee');
+  }, [theme]);
+
+  useEffect(() => {
+    if (!supabase) return undefined;
+
+    let active = true;
+
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!active) return;
+        setSession(data.session ?? null);
+        setAuthLoading(false);
+      })
+      .catch(() => {
+        if (!active) return;
+        setSession(null);
+        setAuthLoading(false);
+      });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (!active) return;
+      setSession(nextSession);
+      setAuthLoading(false);
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const handleSignOut = useCallback(async () => {
+    if (!supabase) return;
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+  }, []);
+
+  const toggleTheme = () =>
+    setTheme((current) => (current === 'dark' ? 'light' : 'dark'));
+
+  if (authLoading) return <AuthLoading />;
+
+  if (!session) {
+    return <AuthPage theme={theme} onToggleTheme={toggleTheme} />;
+  }
+
+  return (
+    <Dashboard
+      key={session.user.id}
+      session={session}
+      theme={theme}
+      onToggleTheme={toggleTheme}
+      onSignOut={handleSignOut}
+    />
+  );
+}
+
+function Dashboard({ session, theme, onToggleTheme, onSignOut }) {
+  const user = session.user;
+  const userId = user.id;
+
   const [emails, setEmails] = useState([]);
   const [activeFolder, setActiveFolder] = useState('all');
   const [unreadOnly, setUnreadOnly] = useState(false);
@@ -44,12 +149,11 @@ export default function App() {
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [theme, setTheme] = useState(getInitialTheme);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [dataSource, setDataSource] = useState(null);
-  const [seeding, setSeeding] = useState(false);
-  const [simulateOpen, setSimulateOpen] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const [toast, setToast] = useState(null);
 
   const activeFolderMeta =
@@ -84,46 +188,41 @@ export default function App() {
     return next;
   }, [emails]);
 
-  useEffect(() => {
-    const root = document.documentElement;
-    root.classList.toggle('dark', theme === 'dark');
-    root.style.colorScheme = theme;
-    try {
-      window.localStorage.setItem('sift-theme', theme);
-    } catch {
-      // Storage can be unavailable in private previews.
-    }
-    document
-      .querySelector('meta[name="theme-color"]')
-      ?.setAttribute('content', theme === 'dark' ? '#07150f' : '#f6f4ee');
-  }, [theme]);
+  const loadInbox = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!userId) return;
+      if (!silent) setLoading(true);
 
-  const loadInbox = useCallback(async () => {
-    try {
-      const { rows, source } = await fetchEmails();
-      const mapped = mapEmailRows(rows).sort(byNewest);
+      try {
+        const { rows, source } = await fetchEmails(userId);
+        const mapped = mapEmailRows(rows).sort(byNewest);
 
-      setEmails(mapped);
-      setDataSource(source);
-      setSelectedId((current) => {
-        if (current && mapped.some((email) => email.id === current)) {
-          return current;
+        setEmails(mapped);
+        setDataSource(source);
+        setLoadError('');
+        setSelectedId((current) => {
+          if (current && mapped.some((email) => email.id === current)) {
+            return current;
+          }
+          return (
+            mapped.find((email) => email.folder !== 'archive')?.id ??
+            mapped[0]?.id ??
+            null
+          );
+        });
+      } catch (error) {
+        if (!silent) {
+          setEmails([]);
+          setSelectedId(null);
+          setDataSource(null);
         }
-        return (
-          mapped.find((email) => email.folder !== 'archive')?.id ??
-          mapped[0]?.id ??
-          null
-        );
-      });
-    } catch (error) {
-      setEmails([]);
-      setSelectedId(null);
-      setDataSource(null);
-      setLoadError(errorText(error));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+        setLoadError(errorText(error));
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [userId],
+  );
 
   useEffect(() => {
     // This effect synchronizes with the remote inbox. State is updated only
@@ -131,6 +230,79 @@ export default function App() {
     // oxlint-disable-next-line react/set-state-in-effect
     loadInbox();
   }, [loadInbox]);
+
+  useEffect(() => {
+    if (!userId) return undefined;
+
+    const unsubscribe = subscribeToEmails(userId, (payload) => {
+      if (payload.eventType === 'INSERT') {
+        const created = mapEmailRow(payload.new);
+        if (!created) return;
+
+        setEmails((current) =>
+          current.some((email) => email.id === created.id)
+            ? current
+            : [{ ...created, unread: true }, ...current],
+        );
+        setDataSource('supabase');
+        setSelectedId((current) => current ?? created.id);
+      } else if (payload.eventType === 'UPDATE') {
+        const updated = mapEmailRow(payload.new);
+        if (!updated) return;
+
+        setEmails((current) =>
+          current.map((email) =>
+            email.id === updated.id
+              ? {
+                  ...updated,
+                  unread: email.unread,
+                  starred: email.starred,
+                }
+              : email,
+          ),
+        );
+      } else if (payload.eventType === 'DELETE') {
+        const removedId = payload.old?.id;
+        if (!removedId) return;
+
+        setEmails((current) =>
+          current.filter((email) => email.id !== removedId),
+        );
+        setSelectedId((current) => (current === removedId ? null : current));
+      }
+    });
+
+    // The API broadcasts a row id after each write. A slow background refresh
+    // covers missed events, background writes, and projects without realtime.
+    let broadcastTimer = null;
+    const unsubscribeBroadcast = subscribeToLiveUpdates(userId, () => {
+      if (broadcastTimer) window.clearTimeout(broadcastTimer);
+      broadcastTimer = window.setTimeout(() => {
+        loadInbox({ silent: true });
+      }, 350);
+    });
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        loadInbox({ silent: true });
+      }
+    }, 30_000);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        loadInbox({ silent: true });
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      unsubscribe();
+      unsubscribeBroadcast();
+      if (broadcastTimer) window.clearTimeout(broadcastTimer);
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [loadInbox, userId]);
 
   const handleRetry = () => {
     setLoading(true);
@@ -284,9 +456,11 @@ export default function App() {
     updateEmail(email.id, { handled: nextHandled, unread: false });
 
     try {
-      const { source } = await updateEmailRecord(email.id, {
-        is_handled: nextHandled,
-      });
+      const { source } = await updateEmailRecord(
+        email.id,
+        { is_handled: nextHandled },
+        userId,
+      );
       setDataSource(source);
       pushToast(
         nextHandled
@@ -310,9 +484,11 @@ export default function App() {
     setMobileDetailOpen(false);
 
     try {
-      const { source } = await updateEmailRecord(email.id, {
-        category: folderToCategory(folderId),
-      });
+      const { source } = await updateEmailRecord(
+        email.id,
+        { category: folderToCategory(folderId) },
+        userId,
+      );
       setDataSource(source);
 
       pushToast(
@@ -325,9 +501,11 @@ export default function App() {
           setSelectedId(email.id);
 
           try {
-            const undoResult = await updateEmailRecord(email.id, {
-              category: folderToCategory(previous.folder),
-            });
+            const undoResult = await updateEmailRecord(
+              email.id,
+              { category: folderToCategory(previous.folder) },
+              userId,
+            );
             setDataSource(undoResult.source);
           } catch (error) {
             updateEmail(email.id, { folder: folderId, unread: nextUnread });
@@ -366,53 +544,36 @@ export default function App() {
     updateEmail(email.id, { handled: true, unread: false });
 
     try {
-      const { source } = await updateEmailRecord(email.id, {
-        is_handled: true,
-      });
+      const { source } = await updateEmailRecord(
+        email.id,
+        { is_handled: true },
+        userId,
+      );
       setDataSource(source);
-      pushToast(`Reply sent to ${email.sender.name.split(' ')[0]}.`);
+      pushToast('Reply marked as handled. Copy the draft to send it.');
     } catch (error) {
       updateEmail(email.id, previous);
       pushToast(
-        `Reply drafted, but the handled status could not be saved. ${errorText(
+        `The draft is ready, but the handled status could not be saved. ${errorText(
           error,
         )}`,
       );
     }
   };
 
-  const handleSeed = async () => {
-    if (seeding) return;
-
-    setSeeding(true);
-    setLoadError('');
+  const handleDelete = async (email) => {
+    const previous = emails;
+    setEmails((current) => current.filter((item) => item.id !== email.id));
+    setSelectedId((current) => (current === email.id ? null : current));
+    setMobileDetailOpen(false);
 
     try {
-      const seedRows = buildSeedRows();
-      const { rows, source } = await seedEmailRecords(seedRows);
-      const mapped = mapEmailRows(rows).sort(byNewest);
-
-      if (mapped.length === 0) {
-        throw new Error('Supabase did not return the seeded emails.');
-      }
-
-      const firstEmail =
-        mapped.find((email) => email.folder !== 'archive') ?? mapped[0];
-
-      setEmails(mapped);
+      const { source } = await deleteEmailRecord(email.id, userId);
       setDataSource(source);
-      setSelectedId(firstEmail.id);
-      setActiveFolder(firstEmail.folder === 'archive' ? 'archive' : 'all');
-      setSearchQuery('');
-      setUnreadOnly(false);
-      setHighPriorityOnly(false);
-      setMobileDetailOpen(false);
-      pushToast(`${mapped.length} sample emails added to your inbox.`);
+      pushToast('Conversation deleted.');
     } catch (error) {
-      setLoadError(errorText(error));
-      pushToast(`Seeding failed. ${errorText(error)}`);
-    } finally {
-      setSeeding(false);
+      setEmails(previous);
+      pushToast(`Could not delete this conversation. ${errorText(error)}`);
     }
   };
 
@@ -441,6 +602,18 @@ export default function App() {
     pushToast(
       `Sift filed this in ${newEmail.category} · ${newEmail.priority} priority.`,
     );
+  };
+
+  const handleSignOut = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+
+    try {
+      await onSignOut();
+    } catch (error) {
+      setSigningOut(false);
+      pushToast(`Could not sign out. ${errorText(error)}`);
+    }
   };
 
   const handleUndo = () => {
@@ -476,6 +649,8 @@ export default function App() {
         onClearQuickFilters={handleClearQuickFilters}
         onReviewPriorities={handleReviewPriorities}
         priorityCount={priorityCount}
+        user={user}
+        onSignOut={handleSignOut}
       />
 
       {sidebarOpen ? (
@@ -492,15 +667,15 @@ export default function App() {
           locationLabel={locationLabel}
           searchQuery={searchQuery}
           onSearchChange={handleSearchChange}
-          onSimulateEmail={() => setSimulateOpen(true)}
+          onImportEmail={() => setComposeOpen(true)}
           onOpenSidebar={() => setSidebarOpen(true)}
           sidebarCollapsed={sidebarCollapsed}
           onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
           theme={theme}
-          onToggleTheme={() =>
-            setTheme((current) => (current === 'dark' ? 'light' : 'dark'))
-          }
-          onToast={pushToast}
+          onToggleTheme={onToggleTheme}
+          user={user}
+          onSignOut={handleSignOut}
+          signingOut={signingOut}
         />
 
         <main className="flex min-h-0 flex-1">
@@ -520,8 +695,7 @@ export default function App() {
             loadError={loadError}
             inboxEmpty={emails.length === 0}
             onRetry={handleRetry}
-            onSeed={handleSeed}
-            seeding={seeding}
+            onImportEmail={() => setComposeOpen(true)}
             dataSource={dataSource}
           />
 
@@ -536,15 +710,18 @@ export default function App() {
             onToggleHandled={handleToggleHandled}
             onMove={handleMove}
             onSendReply={handleSendReply}
+            onDelete={handleDelete}
             onNotify={pushToast}
+            user={user}
           />
         </main>
       </div>
 
-      {simulateOpen ? (
-        <SimulateEmailModal
+      {composeOpen ? (
+        <ComposeModal
           open
-          onClose={() => setSimulateOpen(false)}
+          userId={userId}
+          onClose={() => setComposeOpen(false)}
           onCreated={handleEmailCreated}
         />
       ) : null}

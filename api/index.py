@@ -2,24 +2,30 @@
 
 Classifies incoming email with Gemini and persists it to Supabase. Vercel
 routes /api/* requests to this single function via vercel.json.
+
+Every user-facing read and write is scoped to the authenticated Supabase user.
+Inbound webhooks are scoped to the user_id embedded in the personal endpoint.
 """
 
 from __future__ import annotations
 
+import html
+import json
 import logging
 import os
-from datetime import datetime
+import re
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 from uuid import UUID
 
+import httpx
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from google import genai
 from google.genai import types
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 from supabase import Client, create_client
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -43,12 +49,107 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
 GEMINI_FALLBACK_MODEL = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-3-flash-preview")
 
 
-class SiftRequest(BaseModel):
-    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+def _coalesce(*values: Any) -> Any:
+    """Return the first non-empty value from a list of webhook aliases."""
 
-    sender: str = Field(min_length=1, max_length=500)
-    subject: str = Field(min_length=1, max_length=1000)
-    body: str = Field(min_length=1, max_length=50_000)
+    for value in values:
+        if value is None:
+            continue
+        if isinstance(value, str) and not value.strip():
+            continue
+        if isinstance(value, (dict, list, tuple)) and not value:
+            continue
+        return value
+    return None
+
+
+def _normalize_sender(value: Any) -> str:
+    if isinstance(value, (list, tuple)):
+        return _normalize_sender(value[0]) if value else ""
+    if isinstance(value, dict):
+        name = _coalesce(value.get("Name"), value.get("name"))
+        email = _coalesce(
+            value.get("Email"),
+            value.get("email"),
+            value.get("Address"),
+            value.get("address"),
+        )
+        if name and email:
+            return f"{name} <{email}>"
+        if email:
+            return str(email)
+        if name:
+            return str(name)
+        return ""
+    return str(value or "").strip()
+
+
+def _strip_html(value: str) -> str:
+    value = re.sub(
+        r"(?is)<(script|style)\b[^>]*>.*?</\1>",
+        " ",
+        value,
+    )
+    value = re.sub(r"(?s)<[^>]+>", " ", value)
+    return re.sub(r"\s+", " ", html.unescape(value)).strip()
+
+
+class SiftRequest(BaseModel):
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        extra="allow",
+        populate_by_name=True,
+    )
+
+    user_id: Optional[str] = Field(default=None, max_length=64)
+    sender: str = Field(default="Unknown sender", max_length=500)
+    subject: str = Field(default="(No subject)", max_length=1000)
+    body: str = Field(default="(No body content provided.)", max_length=50_000)
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_inbound_payload(cls, data: Any) -> Any:
+        """Accept Sift, Postmark, CloudMailin, and SendGrid payload shapes."""
+
+        if not isinstance(data, dict):
+            return data
+
+        payload = dict(data)
+        sender = _coalesce(
+            payload.get("sender"),
+            payload.get("from"),
+            payload.get("From"),
+            payload.get("FromFull"),
+            payload.get("fromFull"),
+        )
+        subject = _coalesce(payload.get("subject"), payload.get("Subject"))
+
+        body = _coalesce(
+            payload.get("body"),
+            payload.get("TextBody"),
+            payload.get("text"),
+            payload.get("plain"),
+            payload.get("stripped-text"),
+            payload.get("body-plain"),
+        )
+        if body is None:
+            html_body = _coalesce(
+                payload.get("html"),
+                payload.get("HtmlBody"),
+                payload.get("htmlBody"),
+            )
+            if html_body is not None:
+                body = _strip_html(str(html_body))
+
+        payload["sender"] = (_normalize_sender(sender) or "Unknown sender")[:500]
+        payload["subject"] = str(subject or "(No subject)").strip()[:1000]
+        payload["body"] = str(body or "(No body content provided.)").strip()[:50_000]
+
+        raw_user_id = _coalesce(payload.get("user_id"), payload.get("userId"))
+        payload["user_id"] = (
+            str(raw_user_id).strip()[:64] if raw_user_id is not None else None
+        )
+        return payload
 
 
 class SiftClassification(BaseModel):
@@ -77,33 +178,12 @@ class EmailUpdate(BaseModel):
         return self
 
 
-class SeedEmail(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    sender: str = Field(min_length=1, max_length=500)
-    subject: str = Field(min_length=1, max_length=1000)
-    body: str = Field(min_length=1, max_length=50_000)
-    category: Category
-    priority: Priority
-    ai_summary: str = ""
-    action_item: str = "None"
-    is_handled: bool = False
-    created_at: Optional[datetime] = None
-
-
-class SeedRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    emails: list[SeedEmail] = Field(min_length=1, max_length=100)
-
-
 app = FastAPI(
     title="Sift API",
-    description="AI email triage for the Sift inbox.",
-    version="1.0.0",
+    description="AI email triage with per-user inbox isolation.",
+    version="2.0.0",
 )
 
-# The demo frontend runs on Vite locally and Vercel in previews.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -132,6 +212,161 @@ def get_gemini() -> genai.Client:
         api_key=api_key,
         http_options=types.HttpOptions(timeout=45_000),
     )
+
+
+def broadcast_email_change(user_id: str, email_id: str) -> None:
+    """Notify every open tab for this user without requiring publication setup.
+
+    The broadcast carries only the affected row id. Each client refreshes its
+    own user-scoped inbox through Supabase RLS, so email content is never placed
+    on the broadcast channel.
+    """
+
+    url = os.getenv("SUPABASE_URL", "").rstrip("/")
+    service_role_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+    if not url or not service_role_key:
+        return
+
+    try:
+        response = httpx.post(
+            f"{url}/realtime/v1/api/broadcast",
+            headers={
+                "apikey": service_role_key,
+                "Authorization": f"Bearer {service_role_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "messages": [
+                    {
+                        "topic": f"sift:user:{user_id}",
+                        "event": "email.changed",
+                        "payload": {"id": email_id},
+                        "private": False,
+                    }
+                ]
+            },
+            timeout=2.0,
+        )
+        if response.status_code >= 300:
+            logger.warning(
+                "Realtime broadcast returned HTTP %s", response.status_code
+            )
+    except Exception as exc:  # pragma: no cover - depends on external API
+        logger.warning("Realtime broadcast failed: %s", type(exc).__name__)
+
+
+def _resolve_bearer_token(authorization: Optional[str]) -> Optional[str]:
+    """Verify a Supabase access token and return its user id, if present."""
+
+    if not authorization:
+        return None
+
+    scheme, _, token = authorization.partition(" ")
+    token = token.strip()
+    if scheme.lower() != "bearer" or not token:
+        raise HTTPException(status_code=401, detail="Sign in to continue.")
+
+    try:
+        response = get_supabase().auth.get_user(token)
+    except Exception as exc:  # pragma: no cover - depends on external API
+        logger.info("Rejected Supabase session: %s", type(exc).__name__)
+        raise HTTPException(
+            status_code=401,
+            detail="Your session is invalid or has expired. Please sign in again.",
+        ) from exc
+
+    user = getattr(response, "user", None)
+    user_id = getattr(user, "id", None)
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Your session is invalid or has expired. Please sign in again.",
+        )
+    return str(user_id)
+
+
+def current_user_id(
+    authorization: Optional[str] = Header(default=None),
+) -> str:
+    user_id = _resolve_bearer_token(authorization)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Sign in to continue.")
+    return user_id
+
+
+def _verify_webhook_user(user_id: str) -> str:
+    try:
+        UUID(user_id)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=400, detail="user_id must be a valid Supabase user id."
+        ) from exc
+
+    try:
+        response = get_supabase().auth.admin.get_user_by_id(user_id)
+    except Exception as exc:  # pragma: no cover - depends on external API
+        logger.info("Unknown webhook user: %s", type(exc).__name__)
+        raise HTTPException(
+            status_code=400,
+            detail="The user_id does not match a Sift account.",
+        ) from exc
+
+    if not getattr(response, "user", None):
+        raise HTTPException(
+            status_code=400,
+            detail="The user_id does not match a Sift account.",
+        )
+    return user_id
+
+
+async def parse_inbound_request(request: Request) -> SiftRequest:
+    """Parse JSON or form-encoded inbound payloads from email providers."""
+
+    content_type = request.headers.get("content-type", "").lower()
+    data: Any
+
+    if "application/json" in content_type:
+        try:
+            data = await request.json()
+        except json.JSONDecodeError as exc:
+            raise HTTPException(
+                status_code=400, detail="The request body must be valid JSON."
+            ) from exc
+    elif (
+        "multipart/form-data" in content_type
+        or "application/x-www-form-urlencoded" in content_type
+    ):
+        form = await request.form()
+        data = {
+            key: value
+            for key, value in form.multi_items()
+            if isinstance(value, str)
+        }
+    else:
+        raw = await request.body()
+        try:
+            data = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise HTTPException(
+                status_code=415,
+                detail="Send the email as JSON or form-encoded data.",
+            ) from exc
+
+    if isinstance(data, list) and data:
+        data = data[0]
+    if not isinstance(data, dict):
+        raise HTTPException(
+            status_code=400, detail="The inbound payload must be an object."
+        )
+
+    try:
+        return SiftRequest.model_validate(data)
+    except ValidationError as exc:
+        logger.info("Invalid inbound payload: %s", exc.errors())
+        raise HTTPException(
+            status_code=422,
+            detail="The inbound email payload is missing or has invalid fields.",
+        ) from exc
 
 
 def classify_email(payload: SiftRequest) -> SiftClassification:
@@ -163,7 +398,9 @@ Body:
 """
 
     candidate_models = list(
-        dict.fromkeys(model for model in (GEMINI_MODEL, GEMINI_FALLBACK_MODEL) if model)
+        dict.fromkeys(
+            model for model in (GEMINI_MODEL, GEMINI_FALLBACK_MODEL) if model
+        )
     )
     response = None
     last_error: Optional[Exception] = None
@@ -209,16 +446,42 @@ Body:
 
 @app.get("/api/health")
 def health() -> dict[str, str]:
-    return {"status": "ok"}
+    return {"status": "ok", "service": "sift", "version": "2.0.0"}
 
 
 @app.post("/api/sift", status_code=201)
-def sift_email(payload: SiftRequest) -> dict:
-    classification = classify_email(payload)
+async def sift_email(
+    request: SiftRequest = Depends(parse_inbound_request),
+    authorization: Optional[str] = Header(default=None),
+    user_id: Optional[str] = Query(default=None),
+) -> dict:
+    authenticated_user_id = _resolve_bearer_token(authorization)
+    requested_user_id = (user_id or request.user_id or "").strip() or None
+
+    if authenticated_user_id:
+        if requested_user_id and requested_user_id != authenticated_user_id:
+            raise HTTPException(
+                status_code=403,
+                detail="You can only add email to your own inbox.",
+            )
+        owner_id = authenticated_user_id
+    else:
+        if not requested_user_id:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "A user_id is required for inbound email. Use the personal "
+                    "webhook endpoint from Sift."
+                ),
+            )
+        owner_id = _verify_webhook_user(requested_user_id)
+
+    classification = classify_email(request)
     row = {
-        "sender": payload.sender,
-        "subject": payload.subject,
-        "body": payload.body,
+        "user_id": owner_id,
+        "sender": request.sender,
+        "subject": request.subject,
+        "body": request.body,
         **classification.model_dump(),
     }
 
@@ -236,41 +499,19 @@ def sift_email(payload: SiftRequest) -> dict:
             status_code=502,
             detail="Supabase did not return the saved email.",
         )
-    return response.data[0]
-
-
-@app.patch("/api/emails/{email_id}")
-def update_email(email_id: UUID, payload: EmailUpdate) -> dict:
-    updates = payload.model_dump(exclude_none=True)
-    try:
-        response = (
-            get_supabase()
-            .table("emails")
-            .update(updates)
-            .eq("id", str(email_id))
-            .execute()
-        )
-    except Exception as exc:  # pragma: no cover - depends on external API
-        logger.exception("Supabase update failed")
-        raise HTTPException(
-            status_code=502,
-            detail="The email could not be updated.",
-        ) from exc
-
-    if not response.data:
-        raise HTTPException(status_code=404, detail="Email not found.")
-    return response.data[0]
+    saved = response.data[0]
+    broadcast_email_change(owner_id, str(saved["id"]))
+    return saved
 
 
 @app.get("/api/emails")
-def list_emails() -> list[dict]:
-    """Backend fallback for browsers that do not have the anon key."""
-
+def list_emails(user_id: str = Depends(current_user_id)) -> list[dict]:
     try:
         response = (
             get_supabase()
             .table("emails")
             .select("*")
+            .eq("user_id", user_id)
             .order("created_at", desc=True)
             .execute()
         )
@@ -283,15 +524,57 @@ def list_emails() -> list[dict]:
     return response.data or []
 
 
-@app.post("/api/emails/seed", status_code=201)
-def seed_emails(payload: SeedRequest) -> list[dict]:
-    rows = [email.model_dump(mode="json", exclude_none=True) for email in payload.emails]
+@app.patch("/api/emails/{email_id}")
+def update_email(
+    email_id: UUID,
+    payload: EmailUpdate,
+    user_id: str = Depends(current_user_id),
+) -> dict:
+    updates = payload.model_dump(exclude_none=True)
     try:
-        response = get_supabase().table("emails").insert(rows).execute()
+        response = (
+            get_supabase()
+            .table("emails")
+            .update(updates)
+            .eq("id", str(email_id))
+            .eq("user_id", user_id)
+            .execute()
+        )
     except Exception as exc:  # pragma: no cover - depends on external API
-        logger.exception("Supabase seed failed")
+        logger.exception("Supabase update failed")
         raise HTTPException(
             status_code=502,
-            detail="Sample emails could not be seeded.",
+            detail="The email could not be updated.",
         ) from exc
-    return response.data or []
+
+    if not response.data:
+        raise HTTPException(status_code=404, detail="Email not found.")
+    broadcast_email_change(user_id, str(email_id))
+    return response.data[0]
+
+
+@app.delete("/api/emails/{email_id}")
+def delete_email(
+    email_id: UUID,
+    user_id: str = Depends(current_user_id),
+) -> dict[str, str | bool]:
+    try:
+        response = (
+            get_supabase()
+            .table("emails")
+            .delete()
+            .eq("id", str(email_id))
+            .eq("user_id", user_id)
+            .execute()
+        )
+    except Exception as exc:  # pragma: no cover - depends on external API
+        logger.exception("Supabase delete failed")
+        raise HTTPException(
+            status_code=502,
+            detail="The email could not be deleted.",
+        ) from exc
+
+    if not response.data:
+        raise HTTPException(status_code=404, detail="Email not found.")
+    broadcast_email_change(user_id, str(email_id))
+    return {"deleted": True, "id": str(email_id)}

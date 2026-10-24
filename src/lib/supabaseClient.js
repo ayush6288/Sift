@@ -14,18 +14,25 @@ export const supabaseUrl = rawUrl
 const isPartialJwt =
   rawAnonKey.startsWith('eyJ') && rawAnonKey.split('.').length !== 3;
 
-export const isSupabaseConfigured =
-  import.meta.env.VITE_SUPABASE_DIRECT === 'true' &&
-  Boolean(supabaseUrl && rawAnonKey && !isPartialJwt);
+export const isSupabaseConfigured = Boolean(
+  supabaseUrl && rawAnonKey && !isPartialJwt,
+);
 
 if (isPartialJwt) {
   console.warn(
-    'VITE_SUPABASE_ANON_KEY looks truncated. Sift will use the server-side Vercel API.',
+    'VITE_SUPABASE_ANON_KEY looks truncated. Authentication and Supabase queries are unavailable.',
   );
 }
 
+// The auth client must exist whenever the public project credentials are
+// present. Data access still runs through Supabase RLS with the signed-in
+// user's JWT; the service-role key never reaches the browser.
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, rawAnonKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
     })
   : null;

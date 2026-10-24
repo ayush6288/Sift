@@ -1,7 +1,7 @@
 import Avatar from './Avatar';
 import Icon from './Icons';
 import Tag from './Tag';
-import { FOLDERS } from '../data/mockEmails';
+import { FOLDERS } from '../lib/folders';
 import { formatListTime, pluralize } from '../utils/format';
 
 function FilterChip({ label, onRemove }) {
@@ -56,7 +56,7 @@ function ErrorState({ message, onRetry }) {
   );
 }
 
-function SeedState({ onSeed, seeding }) {
+function EmptyInboxState({ onImportEmail }) {
   return (
     <div className="flex h-full flex-col items-center justify-center px-8 py-16 text-center">
       <div className="relative flex h-[72px] w-[72px] items-center justify-center rounded-[22px] border border-line bg-raised text-kicker shadow-[0_8px_24px_-14px_rgba(30,60,45,0.25)]">
@@ -66,29 +66,18 @@ function SeedState({ onSeed, seeding }) {
         </span>
       </div>
       <h2 className="mt-5 font-display text-[26px] leading-tight text-ink">
-        Your inbox is ready.
+        All clear.
       </h2>
-      <p className="mt-2 max-w-[265px] text-[11.5px] leading-relaxed text-muted">
-        There are no emails in Supabase yet. Seed a sample inbox and Sift will
-        sort every conversation for you.
+      <p className="mt-2 max-w-[285px] text-[11.5px] leading-relaxed text-muted">
+        Your inbox is clean. Forward emails to your Sift webhook or click
+        &apos;+ Import Email&apos; to classify a message.
       </p>
       <button
         type="button"
-        onClick={onSeed}
-        disabled={seeding}
-        className="mt-4 inline-flex h-9 items-center gap-1.5 rounded-lg bg-forest px-3.5 text-[11px] font-medium text-primary-ink shadow-sm transition hover:bg-forest-hover disabled:cursor-wait disabled:opacity-80"
+        onClick={onImportEmail}
+        className="mt-4 inline-flex h-9 items-center justify-center rounded-lg bg-forest px-3.5 text-[11px] font-medium text-primary-ink shadow-sm transition hover:bg-forest-hover"
       >
-        {seeding ? (
-          <>
-            <span className="h-3 w-3 animate-spin rounded-full border-2 border-primary-ink/30 border-t-primary-ink" />
-            Seeding sample emails…
-          </>
-        ) : (
-          <>
-            <Icon name="plus" size={12} strokeWidth={2.2} />
-            Seed sample emails
-          </>
-        )}
+        + Import Email
       </button>
     </div>
   );
@@ -210,8 +199,7 @@ export default function EmailList({
   loadError = '',
   inboxEmpty = false,
   onRetry,
-  onSeed,
-  seeding = false,
+  onImportEmail,
   dataSource = null,
 }) {
   const trimmedQuery = searchQuery.trim();
@@ -291,7 +279,7 @@ export default function EmailList({
             ))}
           </div>
         ) : inboxEmpty && !isSearching && !filtersActive ? (
-          <SeedState onSeed={onSeed} seeding={seeding} />
+          <EmptyInboxState onImportEmail={onImportEmail} />
         ) : (
           <div className="flex h-full flex-col items-center justify-center px-8 py-16 text-center">
             <div className="relative flex h-[72px] w-[72px] items-center justify-center rounded-[22px] border border-line bg-raised text-kicker shadow-[0_8px_24px_-14px_rgba(30,60,45,0.25)]">

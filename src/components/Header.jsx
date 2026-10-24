@@ -1,14 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import Avatar from './Avatar';
 import Icon from './Icons';
-import { CURRENT_USER } from '../data/mockEmails';
+import WebhookPopover from './WebhookPopover';
+import { userDisplayName } from '../lib/user';
 
-function SearchField({
-  inputRef,
-  value,
-  onChange,
-  showShortcut = false,
-}) {
+function SearchField({ inputRef, value, onChange, showShortcut = false }) {
   return (
     <div className="group relative w-full">
       <Icon
@@ -57,13 +53,14 @@ function SearchField({
   );
 }
 
-function ProfileMenuItem({ icon, label, onClick, destructive = false }) {
+function ProfileMenuItem({ icon, label, onClick, destructive = false, disabled = false }) {
   return (
     <button
       type="button"
       role="menuitem"
       onClick={onClick}
-      className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[12px] font-medium transition ${
+      disabled={disabled}
+      className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[12px] font-medium transition disabled:cursor-wait disabled:opacity-60 ${
         destructive
           ? 'text-danger hover:bg-danger-soft'
           : 'text-body hover:bg-soft hover:text-ink'
@@ -83,18 +80,21 @@ export default function Header({
   locationLabel,
   searchQuery,
   onSearchChange,
-  onSimulateEmail,
+  onImportEmail,
   onOpenSidebar,
   sidebarCollapsed,
   onToggleSidebar,
   theme,
   onToggleTheme,
-  onToast,
+  user,
+  onSignOut,
+  signingOut = false,
 }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef(null);
   const desktopSearchRef = useRef(null);
   const mobileSearchRef = useRef(null);
+  const email = user?.email ?? '';
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -132,9 +132,9 @@ export default function Header({
     };
   }, [profileOpen]);
 
-  const handlePlaceholder = (label) => {
+  const handleSignOut = () => {
     setProfileOpen(false);
-    onToast(`${label} isn’t part of this demo yet.`);
+    onSignOut();
   };
 
   return (
@@ -199,22 +199,15 @@ export default function Header({
         <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-1.5 md:ml-0">
           <button
             type="button"
-            onClick={onSimulateEmail}
-            title="Simulate incoming email"
+            onClick={onImportEmail}
+            title="Import or forward an email"
             className="hidden h-10 items-center gap-2 rounded-xl bg-forest px-3 text-[11.5px] font-medium text-primary-ink shadow-[0_1px_2px_rgba(25,55,43,0.18)] transition hover:bg-forest-hover md:flex"
           >
             <Icon name="plus" size={15} strokeWidth={2.2} />
-            <span className="hidden lg:inline">Simulate email</span>
+            <span className="hidden lg:inline">Import Email</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => onToast('You’re all caught up. Nothing new to review.')}
-            aria-label="Notifications"
-            className="relative flex h-10 w-10 items-center justify-center rounded-xl text-soft-ink transition hover:bg-hover hover:text-ink"
-          >
-            <Icon name="bell" size={17} />
-          </button>
+          <WebhookPopover userId={user?.id} />
 
           <button
             type="button"
@@ -241,14 +234,9 @@ export default function Header({
               aria-label="Open profile menu"
               className="flex h-10 items-center gap-2 rounded-xl pl-1 pr-1.5 transition hover:bg-hover sm:pr-2"
             >
-              <Avatar name={CURRENT_USER.name} tone={CURRENT_USER.tone} size="sm" />
-              <span className="hidden text-left leading-tight xl:block">
-                <span className="block text-[11.5px] font-semibold text-ink">
-                  {CURRENT_USER.name}
-                </span>
-                <span className="mt-0.5 block text-[9.5px] text-muted">
-                  {CURRENT_USER.plan}
-                </span>
+              <Avatar name={userDisplayName(user)} tone="sage" size="sm" />
+              <span className="hidden max-w-[170px] truncate text-left text-[10.5px] font-medium text-body xl:block">
+                {email}
               </span>
               <Icon
                 name="chevronDown"
@@ -263,51 +251,29 @@ export default function Header({
               <div
                 role="menu"
                 aria-label="Profile"
-                className="animate-menu-in absolute right-0 top-[calc(100%+9px)] z-50 w-[266px] origin-top-right rounded-2xl border border-line bg-menu p-2 shadow-[0_22px_60px_-18px_rgba(10,28,19,0.35)]"
+                className="animate-menu-in absolute right-0 top-[calc(100%+9px)] z-50 w-[276px] origin-top-right rounded-2xl border border-line bg-menu p-2 shadow-[0_22px_60px_-18px_rgba(10,28,19,0.35)]"
               >
                 <div className="flex items-center gap-3 rounded-xl bg-soft px-3 py-3">
-                  <Avatar name={CURRENT_USER.name} tone={CURRENT_USER.tone} size="md" />
+                  <Avatar name={userDisplayName(user)} tone="sage" size="md" />
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <p className="truncate text-[12px] font-semibold text-ink">
-                        {CURRENT_USER.name}
-                      </p>
-                      <span className="rounded-full bg-accent px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.08em] text-accent-ink">
-                        Pro
-                      </span>
-                    </div>
+                    <p className="truncate text-[12px] font-semibold text-ink">
+                      {userDisplayName(user)}
+                    </p>
                     <p className="mt-0.5 truncate text-[10.5px] text-muted">
-                      {CURRENT_USER.email}
+                      {email}
                     </p>
                   </div>
                 </div>
 
                 <div className="mt-1.5 space-y-0.5">
                   <ProfileMenuItem
-                    icon="user"
-                    label="Account settings"
-                    onClick={() => handlePlaceholder('Account settings')}
-                  />
-                  <ProfileMenuItem
-                    icon="creditCard"
-                    label="Billing & plan"
-                    onClick={() => handlePlaceholder('Billing')}
-                  />
-                  <ProfileMenuItem
-                    icon="settings"
-                    label="Preferences"
-                    onClick={() => handlePlaceholder('Preferences')}
+                    icon="logOut"
+                    label={signingOut ? 'Signing out…' : 'Sign out'}
+                    onClick={handleSignOut}
+                    destructive
+                    disabled={signingOut}
                   />
                 </div>
-
-                <div className="mx-1 my-1.5 h-px bg-line" />
-
-                <ProfileMenuItem
-                  icon="logOut"
-                  label="Sign out"
-                  onClick={() => handlePlaceholder('Sign out')}
-                  destructive
-                />
               </div>
             ) : null}
           </div>
@@ -324,12 +290,12 @@ export default function Header({
         </div>
         <button
           type="button"
-          onClick={onSimulateEmail}
-          aria-label="Simulate incoming email"
+          onClick={onImportEmail}
+          aria-label="Import or forward an email"
           className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-forest px-3 text-[11px] font-medium text-primary-ink shadow-sm transition hover:bg-forest-hover"
         >
           <Icon name="plus" size={14} strokeWidth={2.2} />
-          Simulate
+          Import
         </button>
       </div>
     </header>

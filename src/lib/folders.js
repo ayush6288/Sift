@@ -1,0 +1,42 @@
+export const FOLDERS = [
+  {
+    id: 'all',
+    label: 'All Mail',
+    shortLabel: 'All mail',
+    icon: 'inbox',
+    kicker: 'Unified inbox',
+    blurb: 'Everything Sift has sorted for you',
+  },
+  {
+    id: 'action',
+    label: 'Action Required',
+    shortLabel: 'Action',
+    icon: 'bolt',
+    kicker: 'Needs you',
+    blurb: 'Threads waiting on a reply or decision',
+  },
+  {
+    id: 'receipts',
+    label: 'Receipts & Invoices',
+    shortLabel: 'Receipts',
+    icon: 'receipt',
+    kicker: 'Money & records',
+    blurb: 'Purchases, bills, and payment confirmations',
+  },
+  {
+    id: 'newsletters',
+    label: 'Newsletters & Subscriptions',
+    shortLabel: 'Reading',
+    icon: 'newspaper',
+    kicker: 'Read later',
+    blurb: 'Good reading for when you have a minute',
+  },
+  {
+    id: 'archive',
+    label: 'Archive',
+    shortLabel: 'Archive',
+    icon: 'archive',
+    kicker: 'Out of the way',
+    blurb: 'Sorted, handled, and kept for later',
+  },
+];

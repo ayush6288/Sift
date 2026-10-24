@@ -1,5 +1,3 @@
-import { initialEmails } from '../data/mockEmails';
-
 export const CATEGORY_BY_FOLDER = {
   action: 'Action Required',
   receipts: 'Receipts',
@@ -118,24 +116,4 @@ export function mapEmailRow(row) {
 
 export function mapEmailRows(rows = []) {
   return rows.map(mapEmailRow).filter(Boolean);
-}
-
-export function buildSeedRows() {
-  return initialEmails.map((email) => ({
-    sender: email.sender.email
-      ? `${email.sender.name} <${email.sender.email}>`
-      : email.sender.name,
-    subject: email.subject,
-    body: email.body.join('\n\n'),
-    category: folderToCategory(email.folder),
-    priority: email.highPriority
-      ? 'High'
-      : email.folder === 'action'
-        ? 'Medium'
-        : 'Low',
-    ai_summary: email.summary.join(' '),
-    action_item: email.actionItem,
-    is_handled: Boolean(email.handled),
-    created_at: new Date(email.receivedAt).toISOString(),
-  }));
 }

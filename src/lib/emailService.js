@@ -4,10 +4,11 @@ import { supabase } from './supabaseClient';
 // development Vite proxies /api to uvicorn via vite.config.js.
 export const API_BASE_URL = '';
 
-// Direct browser access is opt-in because the emails table has RLS enabled
-// without anon policies. The server-side API uses the service role instead.
-const directSupabaseEnabled =
-  import.meta.env.VITE_SUPABASE_DIRECT === 'true' && Boolean(supabase);
+async function accessToken() {
+  if (!supabase) return null;
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? null;
+}
 
 async function readJson(response) {
   const text = await response.text();
@@ -33,14 +34,15 @@ function detailMessage(payload, fallback) {
 }
 
 async function apiRequest(path, options = {}) {
-  const url = `${API_BASE_URL}${path}`;
+  const token = await accessToken();
   let response;
 
   try {
-    response = await fetch(url, {
+    response = await fetch(`${API_BASE_URL}${path}`, {
       ...options,
       headers: {
         ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...options.headers,
       },
     });
@@ -61,12 +63,15 @@ async function apiRequest(path, options = {}) {
   return payload;
 }
 
-export async function fetchEmails() {
-  if (directSupabaseEnabled) {
+export async function fetchEmails(userId) {
+  if (!userId) throw new Error('A signed-in user is required.');
+
+  if (supabase) {
     try {
       const { data, error } = await supabase
         .from('emails')
         .select('*')
+        .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -83,10 +88,12 @@ export async function fetchEmails() {
   return { rows: Array.isArray(rows) ? rows : [], source: 'api' };
 }
 
-export async function siftEmail(email) {
+export async function siftEmail(email, userId) {
+  if (!userId) throw new Error('A signed-in user is required.');
+
   const row = await apiRequest('/api/sift', {
     method: 'POST',
-    body: JSON.stringify(email),
+    body: JSON.stringify({ ...email, user_id: userId }),
   });
 
   if (!row?.id) {
@@ -96,63 +103,112 @@ export async function siftEmail(email) {
   return row;
 }
 
-export async function updateEmailRecord(id, patch) {
-  if (directSupabaseEnabled) {
-    try {
-      const { data, error } = await supabase
-        .from('emails')
-        .update(patch)
-        .eq('id', id)
-        .select()
-        .single();
+export async function updateEmailRecord(id, patch, userId) {
+  if (!userId) throw new Error('A signed-in user is required.');
 
-      if (error) throw error;
-      return { row: data, source: 'supabase' };
-    } catch (error) {
-      console.warn(
-        'Direct Supabase update failed; falling back to the server API.',
-        error.message,
-      );
+  try {
+    const row = await apiRequest(`/api/emails/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    });
+
+    if (!row?.id) {
+      throw new Error('The Sift API did not return the updated email.');
     }
+
+    return { row, source: 'api' };
+  } catch (apiError) {
+    if (!supabase) throw apiError;
+
+    console.warn(
+      'Server update failed; falling back to a user-scoped Supabase update.',
+      apiError.message,
+    );
+
+    const { data, error } = await supabase
+      .from('emails')
+      .update(patch)
+      .eq('id', id)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (error) throw apiError;
+    return { row: data, source: 'supabase' };
   }
-
-  const row = await apiRequest(`/api/emails/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify(patch),
-  });
-
-  if (!row?.id) {
-    throw new Error('The Sift API did not return the updated email.');
-  }
-
-  return { row, source: 'api' };
 }
 
-export async function seedEmailRecords(rows) {
-  if (directSupabaseEnabled) {
-    try {
-      const { data, error } = await supabase
-        .from('emails')
-        .insert(rows)
-        .select();
+export async function deleteEmailRecord(id, userId) {
+  if (!userId) throw new Error('A signed-in user is required.');
 
-      if (error) throw error;
-      return { rows: data ?? [], source: 'supabase' };
-    } catch (error) {
-      console.warn(
-        'Direct Supabase seed failed; falling back to the server API.',
-        error.message,
-      );
-    }
+  try {
+    await apiRequest(`/api/emails/${id}`, { method: 'DELETE' });
+    return { source: 'api' };
+  } catch (apiError) {
+    if (!supabase) throw apiError;
+
+    console.warn(
+      'Server delete failed; falling back to a user-scoped Supabase delete.',
+      apiError.message,
+    );
+
+    const { data, error } = await supabase
+      .from('emails')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId)
+      .select();
+
+    if (error || !data?.length) throw apiError;
+    return { source: 'supabase' };
   }
+}
 
-  const inserted = await apiRequest('/api/emails/seed', {
-    method: 'POST',
-    body: JSON.stringify({ emails: rows }),
-  });
+export function subscribeToEmails(userId, onChange) {
+  if (!supabase || !userId) return () => {};
 
-  return {
-    rows: Array.isArray(inserted) ? inserted : [],
-    source: 'api',
+  const channel = supabase
+    .channel(`emails:${userId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'emails',
+        filter: `user_id=eq.${userId}`,
+      },
+      (payload) => onChange(payload),
+    )
+    .subscribe((status) => {
+      if (status === 'CHANNEL_ERROR') {
+        console.warn(
+          'Supabase postgres_changes is unavailable; live broadcasts and periodic refresh remain active.',
+        );
+      }
+    });
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}
+
+export function subscribeToLiveUpdates(userId, onChange) {
+  if (!supabase || !userId) return () => {};
+
+  const channel = supabase
+    .channel(`sift:user:${userId}`)
+    .on('broadcast', { event: 'email.changed' }, (payload) =>
+      onChange(payload),
+    )
+    .subscribe((status) => {
+      if (status === 'CHANNEL_ERROR') {
+        console.warn(
+          'Supabase live updates are unavailable; the inbox will refresh periodically.',
+        );
+      }
+    });
+
+  return () => {
+    supabase.removeChannel(channel);
   };
 }

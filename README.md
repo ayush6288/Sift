@@ -1,29 +1,38 @@
 # Sift — Inbox, sorted
 
-Sift is a full-stack email triage dashboard: React + Vite on the front end, a
-FastAPI Python Function for AI classification, Gemini structured outputs, and
-Supabase for persistence. The whole stack runs from a single Vercel project —
-the browser calls same-origin `/api/*` routes, so no separate API host or
-`localhost:8000` server is needed in production.
+Sift is a production, multi-user email triage dashboard: React + Vite on the
+front end, a FastAPI Python Function for AI classification, Gemini structured
+outputs, and Supabase for authentication and persistence. The whole stack runs
+from one Vercel project, so the browser calls same-origin `/api/*` routes.
 
-Incoming email is classified into **Action Required**, **Receipts**,
-**Newsletters**, or **Archive**, assigned a **High / Medium / Low** priority, and
-summarised into a two-sentence TL;DR with a concrete next action.
+Every inbox is private to the signed-in Supabase user. Sift classifies mail into
+**Action Required**, **Receipts**, **Newsletters**, or **Archive**, assigns a
+**High / Medium / Low** priority, and writes a two-sentence TL;DR with a concrete
+next action.
 
 ## Features
 
-- Live inbox backed by the Supabase `emails` table, ordered newest first.
-- One-click sample inbox seeding when the database is empty.
-- "Simulate incoming email" modal that sends a message through FastAPI and
-  Gemini, then prepends and selects the AI-sorted result.
-- Category tags, priority badges, two-bullet AI summaries, and detected action
-  items in the reading pane.
-- Smart folders with live conversation totals, quick filters, and instant
-  search across senders, subjects, bodies, and tags.
-- Mark handled and folder moves persist to Supabase and remain after refresh,
-  with undo support.
-- Collapsible desktop sidebar, off-canvas mobile navigation, and a green-tinted
-  dark theme with a persisted light/dark toggle.
+- Email/password Supabase authentication with persisted sessions and a working
+  sign-out flow.
+- Per-user inbox isolation enforced by Supabase row-level security and by every
+  API query filtering on `user_id`.
+- Live inbox updates through Supabase Realtime Broadcast after every API
+  write, with postgres_changes and a 30-second refresh as fallbacks.
+- **Import / Forward Email** dialog that sends a pasted message through FastAPI
+  and Gemini, then prepends and selects the AI-sorted result.
+- Personal inbound webhook endpoint for Gmail auto-forwarding, Postmark,
+  CloudMailin, and SendGrid.
+- Category tags, priority badges, two-bullet AI summaries, and a concrete action
+  item in the reading pane.
+- Smart folders with live totals, quick filters, and instant search across
+  senders, subjects, bodies, and tags.
+- Archive, delete, and mark-handled actions with optimistic UI and undo support
+  for folder moves.
+- Collapsible desktop sidebar, off-canvas mobile navigation, and a persisted
+  light/dark theme.
+
+There is no demo mode, sample seed, or fallback inbox content. A new account
+starts with the production empty state.
 
 ## Run locally
 
@@ -34,18 +43,40 @@ cp .env.example .env
 cp api/.env.example api/.env
 ```
 
-Fill in the Supabase and Gemini credentials. The API uses the
-`SUPABASE_SERVICE_ROLE_KEY`, so `api/.env` must stay private. Never put the
-service-role key in the root `.env` — Vite exposes every `VITE_*` variable to the
-browser.
+The root `.env` contains build-time public Supabase credentials:
 
-The root `.env` holds the public Supabase URL and anon key. The `emails` table
-has RLS enabled without anon policies, so Sift uses the server-side API for
-reads and writes by default. Set `VITE_SUPABASE_DIRECT=true` only after adding
-RLS policies for the anon role. The UI footer shows whether it is using
-**Vercel API** or **Supabase direct**.
+```dotenv
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+```
 
-### 2. Backend
+The API `.env` contains server-only secrets:
+
+```dotenv
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+GEMINI_API_KEY=your-gemini-api-key
+GEMINI_MODEL=gemini-3.5-flash
+GEMINI_FALLBACK_MODEL=gemini-3-flash-preview
+```
+
+Never place the service-role key in a `VITE_*` variable. Vite exposes those to
+the browser.
+
+### 2. Supabase
+
+Apply [`supabase/schema.sql`](supabase/schema.sql) in the Supabase SQL editor.
+It enables RLS policies so authenticated users can read, update, and delete only
+their own rows, adds the user/created-at index, and optionally adds `emails` to
+the realtime publication. Live updates work without the publication because the
+API broadcasts a row id after every write. Browser inserts stay disabled; the
+service-role API is the only writer.
+
+Email/password auth must be enabled in **Supabase → Authentication → Providers**.
+If "Confirm email" is enabled, new accounts receive a confirmation link before
+their first sign-in.
+
+### 3. Backend
 
 ```bash
 python3 -m venv .venv
@@ -55,31 +86,55 @@ python3 -m venv .venv
 
 Health check: `http://127.0.0.1:8000/api/health`
 
-The model is configurable with `GEMINI_MODEL` and `GEMINI_FALLBACK_MODEL`.
-Recent Google AI Studio keys reject `gemini-2.5-flash`; the defaults are
-`gemini-3.5-flash` with `gemini-3-flash-preview` as a fallback.
-
-### 3. Frontend
+### 4. Frontend
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open the Vite URL. The dev server proxies `/api` to
-`http://127.0.0.1:8000`, so keep uvicorn running in another terminal. If the
-`emails` table is empty, choose **Seed sample emails** to populate a realistic
-inbox. Use the header's **Simulate email** button to classify a new message with
-Gemini.
+Open the Vite URL and create an account. The dev server proxies `/api` to
+`http://127.0.0.1:8000`, so keep uvicorn running in another terminal.
 
 ## API
 
+All user-facing routes require `Authorization: Bearer <supabase-access-token>`.
+The API verifies the token with Supabase before touching data.
+
 - `GET /api/health` — service health.
-- `POST /api/sift` — classify `{ sender, subject, body }`, save it, and return the
-  inserted Supabase row.
-- `PATCH /api/emails/{email_id}` — persist `is_handled` and/or `category`.
-- `GET /api/emails` — list emails for the same-origin browser API.
-- `POST /api/emails/seed` — insert sample records when the inbox is empty.
+- `POST /api/sift` — classify and save an email. Authenticated requests use the
+  verified token's user; inbound webhook requests use the `user_id` query
+  parameter or body field. Every successful write broadcasts a row id to the
+  owner's live channel.
+- `GET /api/emails` — list only the authenticated user's emails.
+- `PATCH /api/emails/{email_id}` — persist `is_handled` and/or `category` for a
+  row owned by the authenticated user.
+- `DELETE /api/emails/{email_id}` — delete a row owned by the authenticated
+  user.
+
+The broadcast payload contains only the affected row id. Each open tab then
+refetches through Supabase RLS, so email content never travels over the channel.
+
+### Inbound webhook
+
+Each signed-in user can copy their personal endpoint from the **Webhook**
+button in the header:
+
+```text
+https://your-sift-domain/api/sift?user_id=<supabase-user-id>
+```
+
+It accepts JSON or form-encoded payloads from Postmark, CloudMailin, and
+SendGrid. Supported aliases include:
+
+| Sift field | Accepted inbound fields |
+| --- | --- |
+| `sender` | `sender`, `from`, `From`, `FromFull`, `fromFull` |
+| `subject` | `subject`, `Subject` |
+| `body` | `body`, `TextBody`, `text`, `plain`, `stripped-text`, `body-plain`, `html`, `HtmlBody` |
+| `user_id` | `user_id` body field or `?user_id=` query parameter |
+
+Keep the endpoint URL private: anyone who has it can add mail to that inbox.
 
 ## Build and lint
 
@@ -90,11 +145,11 @@ npm run build
 
 ## Deploy to Vercel
 
-The repository is a single Vercel project:
+The repository is one Vercel project:
 
 - Vite builds the frontend into `dist/`.
 - `api/index.py` exports the FastAPI `app` and becomes one Python Function.
-- `requirements.txt` at the repository root installs the Python dependencies.
+- `requirements.txt` installs the Python dependencies.
 - `vercel.json` sends `/api/*` to the function and every other route to the SPA.
 
 Add these environment variables in **Vercel → Project → Settings → Environment
@@ -104,37 +159,40 @@ Variables** for Production and Preview:
 | --- | --- |
 | `VITE_SUPABASE_URL` | Public Supabase project URL (build time). |
 | `VITE_SUPABASE_ANON_KEY` | Public anon key (build time). |
-| `VITE_SUPABASE_DIRECT` | `false`; enables direct browser reads only with RLS policies. |
 | `SUPABASE_URL` | Supabase project URL (runtime). |
-| `SUPABASE_SERVICE_ROLE_KEY` | Server-only database key. Never expose with `VITE_`. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-only database key. |
 | `GEMINI_API_KEY` | Server-only Gemini key. |
 | `GEMINI_MODEL` | Optional; defaults to `gemini-3.5-flash`. |
 | `GEMINI_FALLBACK_MODEL` | Optional; defaults to `gemini-3-flash-preview`. |
 
-The frontend has no configurable API URL; it always calls same-origin `/api`.
-Redeploy after changing any `VITE_*` variable because Vite inlines them at build
+Redeploy after changing a `VITE_*` variable because Vite inlines it at build
 time. The Python Function needs no separate hosting.
 
 ## Project structure
 
-```
+```text
 api/
-├── index.py             FastAPI routes, Gemini triage, Supabase persistence
+├── index.py             FastAPI auth, webhook normalization, Gemini triage
 └── .env.example
+supabase/
+└── schema.sql           RLS, index, and realtime publication
 requirements.txt         Python dependencies installed by Vercel
 vercel.json              API + SPA routing
 src/
 ├── components/
+│   ├── AuthPage.jsx      Sign in / create account
+│   ├── ComposeModal.jsx  Import / forward email
+│   ├── WebhookPopover.jsx Personal inbound endpoint and copy action
 │   ├── EmailDetail.jsx
 │   ├── EmailList.jsx
 │   ├── Header.jsx
-│   ├── SimulateEmailModal.jsx
 │   └── ...
-├── data/mockEmails.js   Seed content and folder definitions
 ├── lib/
 │   ├── emailMapper.js   Supabase row ↔ UI model conversion
-│   ├── emailService.js  Same-origin API client (+ opt-in Supabase direct)
-│   └── supabaseClient.js
+│   ├── emailService.js  User-scoped Supabase client + authenticated API fallback
+│   ├── folders.js       Shared folder definitions
+│   ├── supabaseClient.js
+│   └── user.js
 ├── utils/format.js
 ├── App.jsx
 ├── index.css

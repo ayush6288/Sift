@@ -1,5 +1,7 @@
+import Avatar from './Avatar';
 import Icon from './Icons';
-import { FOLDERS } from '../data/mockEmails';
+import { FOLDERS } from '../lib/folders';
+import { userDisplayName } from '../lib/user';
 
 function QuickToggle({ checked, onChange, icon, label, collapsed }) {
   return (
@@ -62,6 +64,8 @@ export default function Sidebar({
   onClearQuickFilters,
   onReviewPriorities,
   priorityCount,
+  user,
+  onSignOut,
 }) {
   const filtersActive = unreadOnly || highPriorityOnly;
 
@@ -98,13 +102,6 @@ export default function Sidebar({
               Inbox, sorted
             </p>
           </div>
-          <span
-            className={`ml-auto rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[8.5px] font-semibold uppercase tracking-[0.14em] text-[#a8bbad] ${
-              collapsed ? 'hidden' : 'hidden lg:inline-block'
-            }`}
-          >
-            Beta
-          </span>
           <button
             type="button"
             onClick={onClose}
@@ -296,12 +293,45 @@ export default function Sidebar({
               <Icon name="sparkles" size={17} />
             </button>
           ) : null}
+          <div className={`mt-3 ${collapsed ? 'lg:hidden' : ''}`}>
+            <div className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.035] p-2">
+              <Avatar name={userDisplayName(user)} tone="sage" size="sm" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[10px] font-medium text-[#e9efe7]">
+                  {user?.email}
+                </p>
+                <p className="mt-0.5 text-[8px] font-semibold uppercase tracking-[0.14em] text-[#8fa79a]">
+                  Signed in
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onSignOut}
+                title="Sign out"
+                aria-label="Sign out"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[#9db2a4] transition hover:bg-white/10 hover:text-white"
+              >
+                <Icon name="logOut" size={13} />
+              </button>
+            </div>
+          </div>
+          {collapsed ? (
+            <button
+              type="button"
+              onClick={onSignOut}
+              title="Sign out"
+              aria-label="Sign out"
+              className="mt-2 hidden h-9 w-full items-center justify-center rounded-xl border border-white/10 text-[#9db2a4] transition hover:bg-white/10 hover:text-white lg:flex"
+            >
+              <Icon name="logOut" size={15} />
+            </button>
+          ) : null}
           <p
             className={`mt-3 px-2 text-[9px] tracking-[0.04em] text-[#6f8a7a] ${
               collapsed ? 'lg:hidden' : ''
             }`}
           >
-            Sift demo · AI sorting on · v0.1
+            Production · AI sorting on · v1.0
           </p>
         </div>
       </div>
