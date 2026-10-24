@@ -1,10 +1,8 @@
 import { supabase } from './supabaseClient';
 
-// On Vercel the API lives on the same origin as the Vite build. During local
-// development VITE_API_URL points at uvicorn on port 8000.
-export const API_BASE_URL = (
-  import.meta.env.VITE_API_URL?.trim() || ''
-).replace(/\/+$/, '');
+// The API always lives on the same origin as the Vite build. During local
+// development Vite proxies /api to uvicorn via vite.config.js.
+export const API_BASE_URL = '';
 
 // Direct browser access is opt-in because the emails table has RLS enabled
 // without anon policies. The server-side API uses the service role instead.

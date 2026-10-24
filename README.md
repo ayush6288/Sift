@@ -66,9 +66,11 @@ npm install
 npm run dev
 ```
 
-Open the Vite URL. If the `emails` table is empty, choose **Seed sample emails**
-to populate a realistic inbox. Use the header's **Simulate email** button to
-classify a new message with Gemini.
+Open the Vite URL. The dev server proxies `/api` to
+`http://127.0.0.1:8000`, so keep uvicorn running in another terminal. If the
+`emails` table is empty, choose **Seed sample emails** to populate a realistic
+inbox. Use the header's **Simulate email** button to classify a new message with
+Gemini.
 
 ## API
 
@@ -109,7 +111,7 @@ Variables** for Production and Preview:
 | `GEMINI_MODEL` | Optional; defaults to `gemini-3.5-flash`. |
 | `GEMINI_FALLBACK_MODEL` | Optional; defaults to `gemini-3-flash-preview`. |
 
-Leave `VITE_API_URL` unset in Vercel so the browser uses same-origin `/api`.
+The frontend has no configurable API URL; it always calls same-origin `/api`.
 Redeploy after changing any `VITE_*` variable because Vite inlines them at build
 time. The Python Function needs no separate hosting.
 
