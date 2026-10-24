@@ -89,7 +89,7 @@ Health check: `http://127.0.0.1:8000/api/health`
 ### 4. Frontend
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
@@ -102,15 +102,21 @@ All user-facing routes require `Authorization: Bearer <supabase-access-token>`.
 The API verifies the token with Supabase before touching data.
 
 - `GET /api/health` — service health.
+- `GET /api/webhook-config` — return the signed inbound webhook URL for the
+  authenticated user.
 - `POST /api/sift` — classify and save an email. Authenticated requests use the
-  verified token's user; inbound webhook requests use the `user_id` query
-  parameter or body field. Every successful write broadcasts a row id to the
-  owner's live channel.
+  verified token's user. External webhook requests must supply both `user_id`
+  and an HMAC `token` query parameter. Every successful write broadcasts a row
+  id to the owner's live channel.
 - `GET /api/emails` — list only the authenticated user's emails.
 - `PATCH /api/emails/{email_id}` — persist `is_handled` and/or `category` for a
   row owned by the authenticated user.
 - `DELETE /api/emails/{email_id}` — delete a row owned by the authenticated
   user.
+
+API documentation (`/docs`, `/redoc`, `/openapi.json`) is disabled outside
+development. The API caps request bodies at 100 KB, applies per-IP and per-user
+sliding-window limits, and returns generic JSON errors without upstream details.
 
 The broadcast payload contains only the affected row id. Each open tab then
 refetches through Supabase RLS, so email content never travels over the channel.
@@ -121,8 +127,13 @@ Each signed-in user can copy their personal endpoint from the **Webhook**
 button in the header:
 
 ```text
-https://your-sift-domain/api/sift?user_id=<supabase-user-id>
+https://your-sift-domain/api/sift?user_id=<supabase-user-id>&token=<hmac-token>
 ```
+
+The token is a stateless HMAC-SHA256 of the user id. It is derived from
+`WEBHOOK_SECRET` when set; otherwise Sift derives a dedicated signing subkey
+from the server-only `SUPABASE_SERVICE_ROLE_KEY`. The token is returned only by
+the authenticated `GET /api/webhook-config` endpoint.
 
 It accepts JSON or form-encoded payloads from Postmark, CloudMailin, and
 SendGrid. Supported aliases include:
@@ -132,9 +143,12 @@ SendGrid. Supported aliases include:
 | `sender` | `sender`, `from`, `From`, `FromFull`, `fromFull` |
 | `subject` | `subject`, `Subject` |
 | `body` | `body`, `TextBody`, `text`, `plain`, `stripped-text`, `body-plain`, `html`, `HtmlBody` |
-| `user_id` | `user_id` body field or `?user_id=` query parameter |
+| `user_id` | `?user_id=` query parameter (required for external webhooks) |
+| `token` | `?token=` query parameter (required for external webhooks) |
 
-Keep the endpoint URL private: anyone who has it can add mail to that inbox.
+Keep the endpoint URL private. Anyone with the full URL can add mail to that
+inbox and consume that user's classification quota. Rotate `WEBHOOK_SECRET` to
+invalidate every outstanding webhook URL.
 
 ## Build and lint
 
@@ -164,9 +178,32 @@ Variables** for Production and Preview:
 | `GEMINI_API_KEY` | Server-only Gemini key. |
 | `GEMINI_MODEL` | Optional; defaults to `gemini-3.5-flash`. |
 | `GEMINI_FALLBACK_MODEL` | Optional; defaults to `gemini-3-flash-preview`. |
+| `WEBHOOK_SECRET` | Optional; decouples webhook signing from the service key. |
+| `FRONTEND_ORIGINS` | Optional; comma-separated extra CORS origins. |
+| `MAX_EMAILS_PER_DAY` | Optional; rolling 24-hour per-inbox cap (default 500). |
 
 Redeploy after changing a `VITE_*` variable because Vite inlines it at build
 time. The Python Function needs no separate hosting.
+
+`vercel.json` installs with `npm ci`, applies immutable caching to hashed
+assets, marks API responses `no-store`, and sends HSTS, CSP, frame, MIME,
+referrer, and permissions headers. Vite production source maps are disabled.
+
+## Security model
+
+- Supabase RLS restricts browser reads, updates, and deletes to the signed-in
+  user. Browser inserts stay disabled; the API writes with a server-only key.
+- Every API read/write is also explicitly filtered by the verified `user_id`.
+- External webhook ingestion requires a user-specific HMAC token in addition to
+  the user id and is rejected with `401` before Gemini is called.
+- `/api/sift` is limited to 10 requests per minute per IP and per user; other
+  API routes are limited to 60 per minute per IP and per user. Vercel Firewall
+  adds an edge rate-limit layer. Responses use `Retry-After`.
+- Request bodies over 100 KB return `413`; sender, subject, and body fields are
+  capped at 320, 998, and 50,000 characters.
+- CORS accepts only the production Sift origins and local Vite origins.
+- Production deployments are public; preview deployments stay protected by
+  Vercel Authentication. Fork protection and protected source maps are enabled.
 
 ## Project structure
 

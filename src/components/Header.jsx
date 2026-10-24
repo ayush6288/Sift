@@ -207,7 +207,7 @@ export default function Header({
             <span className="hidden lg:inline">Import Email</span>
           </button>
 
-          <WebhookPopover userId={user?.id} />
+          <WebhookPopover key={user?.id} />
 
           <button
             type="button"

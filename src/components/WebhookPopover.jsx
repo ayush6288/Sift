@@ -1,13 +1,38 @@
 import { useEffect, useRef, useState } from 'react';
 import Icon from './Icons';
+import { fetchWebhookConfig } from '../lib/emailService';
 
-export default function WebhookPopover({ userId }) {
+export default function WebhookPopover() {
   const [open, setOpen] = useState(false);
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [tokenError, setTokenError] = useState('');
+  const [attempt, setAttempt] = useState(0);
   const [copied, setCopied] = useState(false);
   const rootRef = useRef(null);
   const timerRef = useRef(null);
+  const tokenLoading = open && !webhookUrl && !tokenError;
 
-  const webhookUrl = `${window.location.origin}/api/sift?user_id=${userId}`;
+  useEffect(() => {
+    if (!open || webhookUrl) return undefined;
+
+    let active = true;
+
+    fetchWebhookConfig()
+      .then((config) => {
+        if (active) setWebhookUrl(config.url);
+      })
+      .catch((error) => {
+        if (active) {
+          setTokenError(
+            error?.message || 'The secure webhook endpoint is unavailable.',
+          );
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [attempt, open, webhookUrl]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -38,6 +63,7 @@ export default function WebhookPopover({ userId }) {
   );
 
   const handleCopy = async () => {
+    if (!webhookUrl) return;
     try {
       await navigator.clipboard.writeText(webhookUrl);
       setCopied(true);
@@ -48,11 +74,22 @@ export default function WebhookPopover({ userId }) {
     }
   };
 
+  const toggleOpen = () => {
+    if (!open) setTokenError('');
+    setOpen((current) => !current);
+  };
+
+  const retryToken = () => {
+    setWebhookUrl('');
+    setTokenError('');
+    setAttempt((current) => current + 1);
+  };
+
   return (
     <div ref={rootRef} className="relative">
       <button
         type="button"
-        onClick={() => setOpen((current) => !current)}
+        onClick={toggleOpen}
         aria-haspopup="dialog"
         aria-expanded={open}
         title="Inbound webhook setup"
@@ -95,13 +132,36 @@ export default function WebhookPopover({ userId }) {
             <p className="text-[8.5px] font-semibold uppercase tracking-[0.14em] text-faint">
               Your personal endpoint
             </p>
-            <code className="mt-1.5 block break-all font-mono text-[9.5px] leading-relaxed text-body">
-              {webhookUrl}
-            </code>
+            <div aria-live="polite">
+              {tokenLoading ? (
+                <p className="mt-1.5 flex items-center gap-2 font-mono text-[9.5px] text-muted">
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-line-strong border-t-accent-text" />
+                  Generating secure endpoint…
+                </p>
+              ) : webhookUrl ? (
+                <code className="mt-1.5 block break-all font-mono text-[9.5px] leading-relaxed text-body">
+                  {webhookUrl}
+                </code>
+              ) : (
+                <div className="mt-1.5 space-y-2">
+                  <p className="text-[9.5px] leading-relaxed text-danger">
+                    {tokenError || 'The secure webhook endpoint is unavailable.'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={retryToken}
+                    className="text-[9.5px] font-semibold text-accent-text underline decoration-accent-line underline-offset-2 transition hover:text-ink"
+                  >
+                    Try again
+                  </button>
+                </div>
+              )}
+            </div>
             <button
               type="button"
               onClick={handleCopy}
-              className="mt-2 flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-accent-line bg-accent-soft px-3 text-[10px] font-semibold text-accent-text transition hover:bg-forest-soft"
+              disabled={!webhookUrl || tokenLoading}
+              className="mt-2 flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-accent-line bg-accent-soft px-3 text-[10px] font-semibold text-accent-text transition hover:bg-forest-soft disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Icon name={copied ? 'check' : 'copy'} size={12} />
               {copied ? 'Copied endpoint' : 'Copy endpoint'}
@@ -120,8 +180,9 @@ export default function WebhookPopover({ userId }) {
               .
             </p>
             <p className="rounded-lg border border-warning/25 bg-warning-soft px-2.5 py-2 text-[9.5px] text-body">
-              Keep this URL private. Anyone who has it can add mail to your
-              inbox.
+              Treat this URL like a password. It contains a secret token that
+              authorizes anyone who has it to add mail to your inbox. If it is
+              exposed, create a new endpoint by rotating the server secret.
             </p>
           </div>
         </div>

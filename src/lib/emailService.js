@@ -63,6 +63,14 @@ async function apiRequest(path, options = {}) {
   return payload;
 }
 
+export async function fetchWebhookConfig() {
+  const payload = await apiRequest('/api/webhook-config');
+  if (!payload?.url || !payload?.token) {
+    throw new Error('The Sift API did not return a webhook configuration.');
+  }
+  return payload;
+}
+
 export async function fetchEmails(userId) {
   if (!userId) throw new Error('A signed-in user is required.');
 

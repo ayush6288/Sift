@@ -7,6 +7,9 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  build: {
+    sourcemap: false,
+  },
   server: {
     proxy: {
       '/api': 'http://127.0.0.1:8000',
