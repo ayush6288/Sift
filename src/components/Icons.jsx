@@ -96,6 +96,7 @@ const ICONS = {
   chevronRight: <path d="m9 18 6-6-6-6" />,
   arrowLeft: <path d="M19 12H5m7 7-7-7 7-7" />,
   arrowRight: <path d="M5 12h14m-7-7 7 7-7 7" />,
+  plus: <path d="M12 5v14M5 12h14" />,
   sparkles: (
     <>
       <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3Z" />

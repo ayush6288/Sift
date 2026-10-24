@@ -5,6 +5,12 @@ import Tag from './Tag';
 import { CURRENT_USER, FOLDERS } from '../data/mockEmails';
 import { formatFullTimestamp } from '../utils/format';
 
+const PRIORITY_STYLES = {
+  High: 'bg-danger-soft text-danger ring-danger/30',
+  Medium: 'bg-warning-soft text-warning ring-warning/30',
+  Low: 'bg-forest-soft text-accent-text ring-accent-line',
+};
+
 function buildReplyDraft(email) {
   const firstName = email.sender.name.split(' ')[0];
   const fallback = {
@@ -246,6 +252,17 @@ export default function EmailDetail({
             {email.tags.map((tag) => (
               <Tag key={tag}>{tag}</Tag>
             ))}
+            {email.priority ? (
+              <span
+                title="Priority assigned by Sift AI"
+                className={`inline-flex items-center gap-1 rounded-[5px] px-1.5 py-[3px] text-[9.5px] font-semibold uppercase leading-none tracking-[0.07em] ring-1 ring-inset ${
+                  PRIORITY_STYLES[email.priority] ?? PRIORITY_STYLES.Medium
+                }`}
+              >
+                <Icon name="flag" size={9} strokeWidth={2.2} />
+                {email.priority} priority
+              </span>
+            ) : null}
             {email.handled ? (
               <span className="inline-flex items-center gap-1 rounded-[5px] bg-forest-soft px-1.5 py-[3px] text-[9.5px] font-semibold uppercase leading-none tracking-[0.07em] text-accent-text ring-1 ring-inset ring-accent-line">
                 <Icon name="checkCircle" size={9} strokeWidth={2} />
@@ -273,9 +290,11 @@ export default function EmailDetail({
                 <span className="text-[12.5px] font-semibold text-ink">
                   {email.sender.name}
                 </span>
-                <span className="truncate text-[10.5px] text-muted">
-                  {email.sender.email}
-                </span>
+                {email.sender.email ? (
+                  <span className="truncate text-[10.5px] text-muted">
+                    {email.sender.email}
+                  </span>
+                ) : null}
               </div>
               <p className="mt-1 text-[10px] text-faint">
                 to Alex Morgan

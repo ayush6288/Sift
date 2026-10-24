@@ -3,6 +3,14 @@ const TAG_STYLES = {
     'bg-[#fbe7df] text-[#a04125] ring-[#f2cfc2] dark:bg-[#3a211b] dark:text-[#f2b4a2] dark:ring-[#5c352b]',
   'needs reply':
     'bg-[#f8efd9] text-[#85611e] ring-[#eee0ba] dark:bg-[#332a18] dark:text-[#ecd298] dark:ring-[#514226]',
+  'action required':
+    'bg-[#f8efd9] text-[#85611e] ring-[#eee0ba] dark:bg-[#332a18] dark:text-[#ecd298] dark:ring-[#514226]',
+  receipts:
+    'bg-[#e5f1e7] text-[#2f6849] ring-[#cfe5d4] dark:bg-[#183023] dark:text-[#a9d3b5] dark:ring-[#2c4a37]',
+  newsletters:
+    'bg-[#e9eef6] text-[#4c5e85] ring-[#dbe3ef] dark:bg-[#202a3b] dark:text-[#b2c2e1] dark:ring-[#34415a]',
+  archive:
+    'bg-[#eeefe9] text-[#626a5d] ring-[#e1e3da] dark:bg-[#262a23] dark:text-[#c5cbbd] dark:ring-[#3a4034]',
   receipt:
     'bg-[#e5f1e7] text-[#2f6849] ring-[#cfe5d4] dark:bg-[#183023] dark:text-[#a9d3b5] dark:ring-[#2c4a37]',
   billing:

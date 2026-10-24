@@ -20,6 +20,80 @@ function FilterChip({ label, onRemove }) {
   );
 }
 
+function LoadingState() {
+  return (
+    <div className="flex h-full flex-col items-center justify-center px-8 py-16 text-center">
+      <span className="h-8 w-8 animate-spin rounded-full border-2 border-line border-t-accent-text" />
+      <p className="mt-4 text-[11.5px] font-medium text-body">
+        Loading your live inbox…
+      </p>
+      <p className="mt-1 text-[10px] text-faint">Checking Supabase for email</p>
+    </div>
+  );
+}
+
+function ErrorState({ message, onRetry }) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center px-8 py-16 text-center">
+      <div className="flex h-[64px] w-[64px] items-center justify-center rounded-[20px] border border-danger/25 bg-danger-soft text-danger">
+        <Icon name="flag" size={24} strokeWidth={1.7} />
+      </div>
+      <h2 className="mt-5 font-display text-[25px] leading-tight text-ink">
+        Inbox unavailable.
+      </h2>
+      <p className="mt-2 max-w-[280px] text-[11px] leading-relaxed text-muted">
+        {message}
+      </p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-4 inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-raised px-3 text-[11px] font-medium text-body shadow-sm transition hover:border-line-strong hover:text-ink"
+      >
+        <Icon name="refresh" size={12} />
+        Try again
+      </button>
+    </div>
+  );
+}
+
+function SeedState({ onSeed, seeding }) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center px-8 py-16 text-center">
+      <div className="relative flex h-[72px] w-[72px] items-center justify-center rounded-[22px] border border-line bg-raised text-kicker shadow-[0_8px_24px_-14px_rgba(30,60,45,0.25)]">
+        <Icon name="inbox" size={27} strokeWidth={1.6} />
+        <span className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-accent text-accent-ink ring-4 ring-panel">
+          <Icon name="sparkles" size={11} />
+        </span>
+      </div>
+      <h2 className="mt-5 font-display text-[26px] leading-tight text-ink">
+        Your inbox is ready.
+      </h2>
+      <p className="mt-2 max-w-[265px] text-[11.5px] leading-relaxed text-muted">
+        There are no emails in Supabase yet. Seed a sample inbox and Sift will
+        sort every conversation for you.
+      </p>
+      <button
+        type="button"
+        onClick={onSeed}
+        disabled={seeding}
+        className="mt-4 inline-flex h-9 items-center gap-1.5 rounded-lg bg-forest px-3.5 text-[11px] font-medium text-primary-ink shadow-sm transition hover:bg-forest-hover disabled:cursor-wait disabled:opacity-80"
+      >
+        {seeding ? (
+          <>
+            <span className="h-3 w-3 animate-spin rounded-full border-2 border-primary-ink/30 border-t-primary-ink" />
+            Seeding sample emails…
+          </>
+        ) : (
+          <>
+            <Icon name="plus" size={12} strokeWidth={2.2} />
+            Seed sample emails
+          </>
+        )}
+      </button>
+    </div>
+  );
+}
+
 function EmailCard({ email, selected, onSelect, isSearching }) {
   const folder = FOLDERS.find((item) => item.id === email.folder);
 
@@ -132,11 +206,28 @@ export default function EmailList({
   onClearHighPriority,
   onClearFilters,
   hiddenOnMobile,
+  loading = false,
+  loadError = '',
+  inboxEmpty = false,
+  onRetry,
+  onSeed,
+  seeding = false,
+  dataSource = null,
 }) {
   const trimmedQuery = searchQuery.trim();
   const isSearching = trimmedQuery.length > 0;
   const filtersActive = unreadOnly || highPriorityOnly;
   const count = emails.length;
+  const sourceLabel =
+    dataSource === 'supabase'
+      ? 'Supabase live'
+      : dataSource === 'api'
+        ? 'FastAPI bridge'
+        : null;
+  const sourceTitle =
+    dataSource === 'supabase'
+      ? 'Reads and writes go directly to Supabase.'
+      : 'The browser is using the backend API because no valid anon key is configured.';
 
   return (
     <section
@@ -183,7 +274,11 @@ export default function EmailList({
       </div>
 
       <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
-        {count > 0 ? (
+        {loading && count === 0 ? (
+          <LoadingState />
+        ) : loadError && count === 0 ? (
+          <ErrorState message={loadError} onRetry={onRetry} />
+        ) : count > 0 ? (
           <div className="divide-y divide-line/70">
             {emails.map((email) => (
               <EmailCard
@@ -195,6 +290,8 @@ export default function EmailList({
               />
             ))}
           </div>
+        ) : inboxEmpty && !isSearching && !filtersActive ? (
+          <SeedState onSeed={onSeed} seeding={seeding} />
         ) : (
           <div className="flex h-full flex-col items-center justify-center px-8 py-16 text-center">
             <div className="relative flex h-[72px] w-[72px] items-center justify-center rounded-[22px] border border-line bg-raised text-kicker shadow-[0_8px_24px_-14px_rgba(30,60,45,0.25)]">
@@ -230,9 +327,21 @@ export default function EmailList({
 
       <div className="flex shrink-0 items-center gap-1.5 border-t border-line/80 px-4 py-2.5 text-[9px] font-medium tracking-[0.02em] text-faint sm:px-5">
         <Icon name="sparkles" size={10} className="text-kicker" />
-        Sorted by Sift AI
-        <span className="text-faint/60">·</span>
-        {count} in view
+        <span className="whitespace-nowrap">Sorted by Sift AI</span>
+        {sourceLabel ? (
+          <>
+            <span className="text-faint/60">·</span>
+            <span
+              title={sourceTitle}
+              className="truncate uppercase tracking-[0.06em]"
+            >
+              {sourceLabel}
+            </span>
+          </>
+        ) : null}
+        <span className="ml-auto whitespace-nowrap text-faint/60">
+          {count} in view
+        </span>
       </div>
     </section>
   );

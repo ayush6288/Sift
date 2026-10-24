@@ -1,10 +1,22 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import EmailDetail from './components/EmailDetail';
 import EmailList from './components/EmailList';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
+import SimulateEmailModal from './components/SimulateEmailModal';
 import Toast from './components/Toast';
-import { FOLDERS, incomingEmails, initialEmails } from './data/mockEmails';
+import { FOLDERS } from './data/mockEmails';
+import {
+  buildSeedRows,
+  folderToCategory,
+  mapEmailRow,
+  mapEmailRows,
+} from './lib/emailMapper';
+import {
+  fetchEmails,
+  seedEmailRecords,
+  updateEmailRecord,
+} from './lib/emailService';
 
 const byNewest = (a, b) => b.receivedAt - a.receivedAt;
 
@@ -19,21 +31,26 @@ const getInitialTheme = () => {
   }
 };
 
+const errorText = (error) =>
+  error?.message || 'Please check the connection and try again.';
+
 export default function App() {
-  const [emails, setEmails] = useState(initialEmails);
+  const [emails, setEmails] = useState([]);
   const [activeFolder, setActiveFolder] = useState('all');
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [highPriorityOnly, setHighPriorityOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedId, setSelectedId] = useState(initialEmails[0]?.id ?? null);
+  const [selectedId, setSelectedId] = useState(null);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [theme, setTheme] = useState(getInitialTheme);
-  const [syncing, setSyncing] = useState(false);
-  const [syncQueue, setSyncQueue] = useState(incomingEmails);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [dataSource, setDataSource] = useState(null);
+  const [seeding, setSeeding] = useState(false);
+  const [simulateOpen, setSimulateOpen] = useState(false);
   const [toast, setToast] = useState(null);
-  const syncTimerRef = useRef(null);
 
   const activeFolderMeta =
     FOLDERS.find((folder) => folder.id === activeFolder) ?? FOLDERS[0];
@@ -80,6 +97,46 @@ export default function App() {
       .querySelector('meta[name="theme-color"]')
       ?.setAttribute('content', theme === 'dark' ? '#07150f' : '#f6f4ee');
   }, [theme]);
+
+  const loadInbox = useCallback(async () => {
+    try {
+      const { rows, source } = await fetchEmails();
+      const mapped = mapEmailRows(rows).sort(byNewest);
+
+      setEmails(mapped);
+      setDataSource(source);
+      setSelectedId((current) => {
+        if (current && mapped.some((email) => email.id === current)) {
+          return current;
+        }
+        return (
+          mapped.find((email) => email.folder !== 'archive')?.id ??
+          mapped[0]?.id ??
+          null
+        );
+      });
+    } catch (error) {
+      setEmails([]);
+      setSelectedId(null);
+      setDataSource(null);
+      setLoadError(errorText(error));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    // This effect synchronizes with the remote inbox. State is updated only
+    // after the request settles, so the lint rule is a false positive here.
+    // oxlint-disable-next-line react/set-state-in-effect
+    loadInbox();
+  }, [loadInbox]);
+
+  const handleRetry = () => {
+    setLoading(true);
+    setLoadError('');
+    loadInbox();
+  };
 
   const priorityCount = useMemo(
     () =>
@@ -155,13 +212,6 @@ export default function App() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [sidebarOpen]);
 
-  useEffect(
-    () => () => {
-      if (syncTimerRef.current) window.clearTimeout(syncTimerRef.current);
-    },
-    [],
-  );
-
   const pushToast = (message, undo = null) => {
     setToast({ id: Date.now() + Math.random(), message, undo });
   };
@@ -228,104 +278,181 @@ export default function App() {
     updateEmail(email.id, { starred: !email.starred });
   };
 
-  const handleToggleHandled = (email) => {
+  const handleToggleHandled = async (email) => {
     const nextHandled = !email.handled;
+    const previous = { handled: email.handled, unread: email.unread };
     updateEmail(email.id, { handled: nextHandled, unread: false });
-    pushToast(
-      nextHandled
-        ? 'Marked as handled. Nicely done.'
-        : 'Reopened — back on your radar.',
-    );
-  };
 
-  const handleArchive = (email) => {
-    if (email.folder === 'archive') return;
-
-    const previous = { folder: email.folder, unread: email.unread };
-    updateEmail(email.id, { folder: 'archive', unread: false });
-    setMobileDetailOpen(false);
-    pushToast('Conversation archived.', () => {
+    try {
+      const { source } = await updateEmailRecord(email.id, {
+        is_handled: nextHandled,
+      });
+      setDataSource(source);
+      pushToast(
+        nextHandled
+          ? 'Marked as handled. Nicely done.'
+          : 'Reopened — back on your radar.',
+      );
+    } catch (error) {
       updateEmail(email.id, previous);
-      setSelectedId(email.id);
-    });
+      pushToast(`Could not update handled status. ${errorText(error)}`);
+    }
   };
 
-  const handleRestore = (email) => {
-    updateEmail(email.id, { folder: 'action', unread: false });
-    setMobileDetailOpen(false);
-    pushToast('Moved back to Action Required.', () => {
-      updateEmail(email.id, { folder: 'archive' });
-      setSelectedId(email.id);
-    });
-  };
-
-  const handleMove = (email, folderId) => {
+  const moveEmail = async (email, folderId, successMessage) => {
     const destination = FOLDERS.find((folder) => folder.id === folderId);
     if (!destination || email.folder === folderId) return;
 
     const previous = { folder: email.folder, unread: email.unread };
-    updateEmail(email.id, {
-      folder: folderId,
-      unread: folderId === 'archive' ? false : email.unread,
-    });
+    const nextUnread = folderId === 'archive' ? false : email.unread;
+
+    updateEmail(email.id, { folder: folderId, unread: nextUnread });
     setMobileDetailOpen(false);
-    pushToast(
+
+    try {
+      const { source } = await updateEmailRecord(email.id, {
+        category: folderToCategory(folderId),
+      });
+      setDataSource(source);
+
+      pushToast(
+        successMessage ??
+          (folderId === 'archive'
+            ? 'Conversation archived.'
+            : `Moved to ${destination.label}.`),
+        async () => {
+          updateEmail(email.id, previous);
+          setSelectedId(email.id);
+
+          try {
+            const undoResult = await updateEmailRecord(email.id, {
+              category: folderToCategory(previous.folder),
+            });
+            setDataSource(undoResult.source);
+          } catch (error) {
+            updateEmail(email.id, { folder: folderId, unread: nextUnread });
+            pushToast(`Could not undo the move. ${errorText(error)}`);
+          }
+        },
+      );
+    } catch (error) {
+      updateEmail(email.id, previous);
+      pushToast(`Could not move this email. ${errorText(error)}`);
+    }
+  };
+
+  const handleArchive = (email) => {
+    if (email.folder === 'archive') return;
+    return moveEmail(email, 'archive', 'Conversation archived.');
+  };
+
+  const handleRestore = (email) =>
+    moveEmail(email, 'action', 'Moved back to Action Required.');
+
+  const handleMove = (email, folderId) => {
+    const destination = FOLDERS.find((folder) => folder.id === folderId);
+    if (!destination) return;
+    return moveEmail(
+      email,
+      folderId,
       folderId === 'archive'
         ? 'Conversation archived.'
         : `Moved to ${destination.label}.`,
-      () => {
-        updateEmail(email.id, previous);
-        setSelectedId(email.id);
-      },
     );
   };
 
-  const handleSendReply = (email) => {
+  const handleSendReply = async (email) => {
+    const previous = { handled: email.handled, unread: email.unread };
     updateEmail(email.id, { handled: true, unread: false });
-    pushToast(`Reply sent to ${email.sender.name.split(' ')[0]}.`);
+
+    try {
+      const { source } = await updateEmailRecord(email.id, {
+        is_handled: true,
+      });
+      setDataSource(source);
+      pushToast(`Reply sent to ${email.sender.name.split(' ')[0]}.`);
+    } catch (error) {
+      updateEmail(email.id, previous);
+      pushToast(
+        `Reply drafted, but the handled status could not be saved. ${errorText(
+          error,
+        )}`,
+      );
+    }
   };
 
-  const handleSync = () => {
-    if (syncing) return;
+  const handleSeed = async () => {
+    if (seeding) return;
 
-    setSyncing(true);
-    const batch = syncQueue.slice(0, 2);
+    setSeeding(true);
+    setLoadError('');
 
-    syncTimerRef.current = window.setTimeout(() => {
-      if (batch.length > 0) {
-        const createdAt = Date.now();
-        const fresh = batch.map((email, index) => ({
-          ...email,
-          id: `${email.id}-${createdAt}-${index}`,
-          receivedAt: createdAt - index * 15000,
-          unread: true,
-        }));
+    try {
+      const seedRows = buildSeedRows();
+      const { rows, source } = await seedEmailRecords(seedRows);
+      const mapped = mapEmailRows(rows).sort(byNewest);
 
-        setEmails((current) => [...fresh, ...current]);
-        setSyncQueue((current) => current.slice(batch.length));
-        pushToast(
-          `${fresh.length} new ${
-            fresh.length === 1 ? 'email' : 'emails'
-          } sorted into your inbox.`,
-          () => {
-            setEmails((current) =>
-              current.filter(
-                (email) => !fresh.some((freshEmail) => freshEmail.id === email.id),
-              ),
-            );
-          },
-        );
-      } else {
-        pushToast('You’re all caught up. No new mail.');
+      if (mapped.length === 0) {
+        throw new Error('Supabase did not return the seeded emails.');
       }
 
-      setSyncing(false);
-    }, 1200);
+      const firstEmail =
+        mapped.find((email) => email.folder !== 'archive') ?? mapped[0];
+
+      setEmails(mapped);
+      setDataSource(source);
+      setSelectedId(firstEmail.id);
+      setActiveFolder(firstEmail.folder === 'archive' ? 'archive' : 'all');
+      setSearchQuery('');
+      setUnreadOnly(false);
+      setHighPriorityOnly(false);
+      setMobileDetailOpen(false);
+      pushToast(`${mapped.length} sample emails added to your inbox.`);
+    } catch (error) {
+      setLoadError(errorText(error));
+      pushToast(`Seeding failed. ${errorText(error)}`);
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  const handleEmailCreated = (row) => {
+    const created = mapEmailRow(row);
+
+    if (!created) {
+      pushToast('Sift saved the email, but the response was incomplete.');
+      return;
+    }
+
+    const newEmail = { ...created, unread: true };
+
+    setEmails((current) => [
+      newEmail,
+      ...current.filter((email) => email.id !== newEmail.id),
+    ]);
+    setSelectedId(newEmail.id);
+    setActiveFolder(newEmail.folder === 'archive' ? 'archive' : 'all');
+    setSearchQuery('');
+    setUnreadOnly(false);
+    setHighPriorityOnly(false);
+    setLoadError('');
+    setDataSource((current) => current ?? 'api');
+    setMobileDetailOpen(true);
+    pushToast(
+      `Sift filed this in ${newEmail.category} · ${newEmail.priority} priority.`,
+    );
   };
 
   const handleUndo = () => {
-    if (toast?.undo) toast.undo();
+    const undo = toast?.undo;
     setToast(null);
+    if (!undo) return;
+
+    try {
+      Promise.resolve(undo()).catch(() => {});
+    } catch {
+      // The undo handler reports its own failures through a toast.
+    }
   };
 
   const locationLabel = searchQuery.trim()
@@ -365,8 +492,7 @@ export default function App() {
           locationLabel={locationLabel}
           searchQuery={searchQuery}
           onSearchChange={handleSearchChange}
-          onSync={handleSync}
-          syncing={syncing}
+          onSimulateEmail={() => setSimulateOpen(true)}
           onOpenSidebar={() => setSidebarOpen(true)}
           sidebarCollapsed={sidebarCollapsed}
           onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
@@ -390,6 +516,13 @@ export default function App() {
             onClearHighPriority={handleToggleHighPriority}
             onClearFilters={handleClearFilters}
             hiddenOnMobile={mobileReading}
+            loading={loading}
+            loadError={loadError}
+            inboxEmpty={emails.length === 0}
+            onRetry={handleRetry}
+            onSeed={handleSeed}
+            seeding={seeding}
+            dataSource={dataSource}
           />
 
           <EmailDetail
@@ -407,6 +540,14 @@ export default function App() {
           />
         </main>
       </div>
+
+      {simulateOpen ? (
+        <SimulateEmailModal
+          open
+          onClose={() => setSimulateOpen(false)}
+          onCreated={handleEmailCreated}
+        />
+      ) : null}
 
       <Toast
         toast={toast}

@@ -83,8 +83,7 @@ export default function Header({
   locationLabel,
   searchQuery,
   onSearchChange,
-  onSync,
-  syncing,
+  onSimulateEmail,
   onOpenSidebar,
   sidebarCollapsed,
   onToggleSidebar,
@@ -200,19 +199,12 @@ export default function Header({
         <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-1.5 md:ml-0">
           <button
             type="button"
-            onClick={onSync}
-            disabled={syncing}
-            aria-busy={syncing}
-            className="hidden h-10 items-center gap-2 rounded-xl bg-forest px-3 text-[11.5px] font-medium text-primary-ink shadow-[0_1px_2px_rgba(25,55,43,0.18)] transition hover:bg-forest-hover disabled:cursor-wait disabled:opacity-80 md:flex"
+            onClick={onSimulateEmail}
+            title="Simulate incoming email"
+            className="hidden h-10 items-center gap-2 rounded-xl bg-forest px-3 text-[11.5px] font-medium text-primary-ink shadow-[0_1px_2px_rgba(25,55,43,0.18)] transition hover:bg-forest-hover md:flex"
           >
-            <Icon
-              name="refresh"
-              size={15}
-              className={syncing ? 'animate-spin' : ''}
-            />
-            <span className="hidden lg:inline">
-              {syncing ? 'Syncing…' : 'Sync inbox'}
-            </span>
+            <Icon name="plus" size={15} strokeWidth={2.2} />
+            <span className="hidden lg:inline">Simulate email</span>
           </button>
 
           <button
@@ -332,18 +324,12 @@ export default function Header({
         </div>
         <button
           type="button"
-          onClick={onSync}
-          disabled={syncing}
-          aria-busy={syncing}
-          aria-label={syncing ? 'Syncing inbox' : 'Sync inbox'}
-          className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-forest px-3 text-[11px] font-medium text-primary-ink shadow-sm transition hover:bg-forest-hover disabled:cursor-wait disabled:opacity-80"
+          onClick={onSimulateEmail}
+          aria-label="Simulate incoming email"
+          className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-forest px-3 text-[11px] font-medium text-primary-ink shadow-sm transition hover:bg-forest-hover"
         >
-          <Icon
-            name="refresh"
-            size={14}
-            className={syncing ? 'animate-spin' : ''}
-          />
-          {syncing ? 'Syncing' : 'Sync'}
+          <Icon name="plus" size={14} strokeWidth={2.2} />
+          Simulate
         </button>
       </div>
     </header>
