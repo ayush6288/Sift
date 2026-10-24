@@ -16,13 +16,17 @@ dist-ssr
 .env
 .env.*
 !.env.example
-backend/.env
-backend/venv/
+api/.env
 
 # Python
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.venv/
+venv/
+
+# Vercel
+.vercel
 
 # Editor directories and files
 .vscode/*

@@ -220,14 +220,14 @@ export default function EmailList({
   const count = emails.length;
   const sourceLabel =
     dataSource === 'supabase'
-      ? 'Supabase live'
+      ? 'Supabase direct'
       : dataSource === 'api'
-        ? 'FastAPI bridge'
+        ? 'Vercel API'
         : null;
   const sourceTitle =
     dataSource === 'supabase'
-      ? 'Reads and writes go directly to Supabase.'
-      : 'The browser is using the backend API because no valid anon key is configured.';
+      ? 'Reads and writes go directly to Supabase with the browser anon key.'
+      : 'Reads and writes go through the same-origin Vercel Python function.';
 
   return (
     <section

@@ -1,6 +1,7 @@
-"""Sift FastAPI backend.
+"""Sift FastAPI backend, deployed as a Vercel Python Function.
 
-Classifies incoming email with Gemini and persists it to Supabase.
+Classifies incoming email with Gemini and persists it to Supabase. Vercel
+routes /api/* requests to this single function via vercel.json.
 """
 
 from __future__ import annotations
@@ -22,6 +23,12 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from supabase import Client, create_client
 
 BASE_DIR = Path(__file__).resolve().parent
+ROOT_DIR = BASE_DIR.parent
+
+# Local development can keep backend secrets in api/.env. Vercel injects the
+# same names as project environment variables at runtime, and real process
+# variables always win over values from a .env file.
+load_dotenv(ROOT_DIR / ".env")
 load_dotenv(BASE_DIR / ".env")
 
 logging.basicConfig(level=logging.INFO)
@@ -30,10 +37,9 @@ logger = logging.getLogger("sift.api")
 Category = Literal["Action Required", "Receipts", "Newsletters", "Archive"]
 Priority = Literal["High", "Medium", "Low"]
 
-# `gemini-2.5-flash` is still the documented default, but newer Google AI
-# Studio keys receive a 404 for it. Keep the model configurable and fall back
-# to the current Flash release so local development works out of the box.
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+# Newer Google AI Studio keys receive a 404 for `gemini-2.5-flash`. Keep the
+# model configurable and default to a current Flash release.
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
 GEMINI_FALLBACK_MODEL = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-3-flash-preview")
 
 

@@ -1,8 +1,10 @@
 # Sift — Inbox, sorted
 
 Sift is a full-stack email triage dashboard: React + Vite on the front end, a
-FastAPI service for AI classification, Gemini structured outputs, and Supabase
-for persistence.
+FastAPI Python Function for AI classification, Gemini structured outputs, and
+Supabase for persistence. The whole stack runs from a single Vercel project —
+the browser calls same-origin `/api/*` routes, so no separate API host or
+`localhost:8000` server is needed in production.
 
 Incoming email is classified into **Action Required**, **Receipts**,
 **Newsletters**, or **Archive**, assigned a **High / Medium / Low** priority, and
@@ -29,33 +31,33 @@ summarised into a two-sentence TL;DR with a concrete next action.
 
 ```bash
 cp .env.example .env
-cp backend/.env.example backend/.env
+cp api/.env.example api/.env
 ```
 
-Fill in the Supabase and Gemini credentials. The backend uses the
-`SUPABASE_SERVICE_ROLE_KEY`, so that file must stay private. Never put the
+Fill in the Supabase and Gemini credentials. The API uses the
+`SUPABASE_SERVICE_ROLE_KEY`, so `api/.env` must stay private. Never put the
 service-role key in the root `.env` — Vite exposes every `VITE_*` variable to the
 browser.
 
-For direct browser access to Supabase, set the project's full anon/public key as
-`VITE_SUPABASE_ANON_KEY`. If it is missing or truncated, Sift automatically uses
-the secure FastAPI bridge (`GET /api/emails`) for reads and writes. The UI footer
-shows which path is active.
+The root `.env` holds the public Supabase URL and anon key. The `emails` table
+has RLS enabled without anon policies, so Sift uses the server-side API for
+reads and writes by default. Set `VITE_SUPABASE_DIRECT=true` only after adding
+RLS policies for the anon role. The UI footer shows whether it is using
+**Vercel API** or **Supabase direct**.
 
 ### 2. Backend
 
 ```bash
-cd backend
-python3 -m venv venv
-venv/bin/pip install -r requirements.txt
-venv/bin/uvicorn main:app --reload --port 8000
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+.venv/bin/uvicorn api.index:app --reload --port 8000
 ```
 
 Health check: `http://127.0.0.1:8000/api/health`
 
 The model is configurable with `GEMINI_MODEL` and `GEMINI_FALLBACK_MODEL`.
-Recent Google AI Studio keys reject `gemini-2.5-flash`; the local configuration
-uses `gemini-3.5-flash` with `gemini-3-flash-preview` as a fallback.
+Recent Google AI Studio keys reject `gemini-2.5-flash`; the defaults are
+`gemini-3.5-flash` with `gemini-3-flash-preview` as a fallback.
 
 ### 3. Frontend
 
@@ -74,7 +76,7 @@ classify a new message with Gemini.
 - `POST /api/sift` — classify `{ sender, subject, body }`, save it, and return the
   inserted Supabase row.
 - `PATCH /api/emails/{email_id}` — persist `is_handled` and/or `category`.
-- `GET /api/emails` — list emails for the browser-safe API bridge.
+- `GET /api/emails` — list emails for the same-origin browser API.
 - `POST /api/emails/seed` — insert sample records when the inbox is empty.
 
 ## Build and lint
@@ -84,13 +86,41 @@ npm run lint
 npm run build
 ```
 
+## Deploy to Vercel
+
+The repository is a single Vercel project:
+
+- Vite builds the frontend into `dist/`.
+- `api/index.py` exports the FastAPI `app` and becomes one Python Function.
+- `requirements.txt` at the repository root installs the Python dependencies.
+- `vercel.json` sends `/api/*` to the function and every other route to the SPA.
+
+Add these environment variables in **Vercel → Project → Settings → Environment
+Variables** for Production and Preview:
+
+| Variable | Purpose |
+| --- | --- |
+| `VITE_SUPABASE_URL` | Public Supabase project URL (build time). |
+| `VITE_SUPABASE_ANON_KEY` | Public anon key (build time). |
+| `VITE_SUPABASE_DIRECT` | `false`; enables direct browser reads only with RLS policies. |
+| `SUPABASE_URL` | Supabase project URL (runtime). |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-only database key. Never expose with `VITE_`. |
+| `GEMINI_API_KEY` | Server-only Gemini key. |
+| `GEMINI_MODEL` | Optional; defaults to `gemini-3.5-flash`. |
+| `GEMINI_FALLBACK_MODEL` | Optional; defaults to `gemini-3-flash-preview`. |
+
+Leave `VITE_API_URL` unset in Vercel so the browser uses same-origin `/api`.
+Redeploy after changing any `VITE_*` variable because Vite inlines them at build
+time. The Python Function needs no separate hosting.
+
 ## Project structure
 
 ```
-backend/
-├── main.py              FastAPI routes, Gemini triage, Supabase persistence
-├── requirements.txt
+api/
+├── index.py             FastAPI routes, Gemini triage, Supabase persistence
 └── .env.example
+requirements.txt         Python dependencies installed by Vercel
+vercel.json              API + SPA routing
 src/
 ├── components/
 │   ├── EmailDetail.jsx
@@ -101,7 +131,7 @@ src/
 ├── data/mockEmails.js   Seed content and folder definitions
 ├── lib/
 │   ├── emailMapper.js   Supabase row ↔ UI model conversion
-│   ├── emailService.js  Direct Supabase client + FastAPI fallback
+│   ├── emailService.js  Same-origin API client (+ opt-in Supabase direct)
 │   └── supabaseClient.js
 ├── utils/format.js
 ├── App.jsx

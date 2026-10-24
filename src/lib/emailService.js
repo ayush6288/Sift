@@ -1,8 +1,15 @@
 import { supabase } from './supabaseClient';
 
+// On Vercel the API lives on the same origin as the Vite build. During local
+// development VITE_API_URL points at uvicorn on port 8000.
 export const API_BASE_URL = (
-  import.meta.env.VITE_API_URL?.trim() || 'http://localhost:8000'
+  import.meta.env.VITE_API_URL?.trim() || ''
 ).replace(/\/+$/, '');
+
+// Direct browser access is opt-in because the emails table has RLS enabled
+// without anon policies. The server-side API uses the service role instead.
+const directSupabaseEnabled =
+  import.meta.env.VITE_SUPABASE_DIRECT === 'true' && Boolean(supabase);
 
 async function readJson(response) {
   const text = await response.text();
@@ -41,7 +48,7 @@ async function apiRequest(path, options = {}) {
     });
   } catch {
     throw new Error(
-      `Could not reach the Sift API at ${API_BASE_URL}. Is FastAPI running?`,
+      `Could not reach the Sift API at ${API_BASE_URL || 'the same origin'}.`,
     );
   }
 
@@ -57,7 +64,7 @@ async function apiRequest(path, options = {}) {
 }
 
 export async function fetchEmails() {
-  if (supabase) {
+  if (directSupabaseEnabled) {
     try {
       const { data, error } = await supabase
         .from('emails')
@@ -68,7 +75,7 @@ export async function fetchEmails() {
       return { rows: data ?? [], source: 'supabase' };
     } catch (error) {
       console.warn(
-        'Direct Supabase read failed; falling back to the FastAPI bridge.',
+        'Direct Supabase read failed; falling back to the server API.',
         error.message,
       );
     }
@@ -92,7 +99,7 @@ export async function siftEmail(email) {
 }
 
 export async function updateEmailRecord(id, patch) {
-  if (supabase) {
+  if (directSupabaseEnabled) {
     try {
       const { data, error } = await supabase
         .from('emails')
@@ -105,7 +112,7 @@ export async function updateEmailRecord(id, patch) {
       return { row: data, source: 'supabase' };
     } catch (error) {
       console.warn(
-        'Direct Supabase update failed; falling back to the FastAPI bridge.',
+        'Direct Supabase update failed; falling back to the server API.',
         error.message,
       );
     }
@@ -124,7 +131,7 @@ export async function updateEmailRecord(id, patch) {
 }
 
 export async function seedEmailRecords(rows) {
-  if (supabase) {
+  if (directSupabaseEnabled) {
     try {
       const { data, error } = await supabase
         .from('emails')
@@ -135,7 +142,7 @@ export async function seedEmailRecords(rows) {
       return { rows: data ?? [], source: 'supabase' };
     } catch (error) {
       console.warn(
-        'Direct Supabase seed failed; falling back to the FastAPI bridge.',
+        'Direct Supabase seed failed; falling back to the server API.',
         error.message,
       );
     }

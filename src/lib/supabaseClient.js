@@ -14,13 +14,13 @@ export const supabaseUrl = rawUrl
 const isPartialJwt =
   rawAnonKey.startsWith('eyJ') && rawAnonKey.split('.').length !== 3;
 
-export const isSupabaseConfigured = Boolean(
-  supabaseUrl && rawAnonKey && !isPartialJwt,
-);
+export const isSupabaseConfigured =
+  import.meta.env.VITE_SUPABASE_DIRECT === 'true' &&
+  Boolean(supabaseUrl && rawAnonKey && !isPartialJwt);
 
 if (isPartialJwt) {
   console.warn(
-    'VITE_SUPABASE_ANON_KEY looks truncated. Sift will use the FastAPI bridge.',
+    'VITE_SUPABASE_ANON_KEY looks truncated. Sift will use the server-side Vercel API.',
   );
 }
 
